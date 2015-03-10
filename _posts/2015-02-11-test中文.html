@@ -1,0 +1,27 @@
+---
+layout: default
+title: GitMK上传及测试
+description: 本文记录使用Git上传本地文件到服务器
+categories: [Git]
+tags: [Git]
+---
+
+<div class="entry-content">
+			<p><strong>网友的问题：</strong></p>
+<p>1.MySQL对于int类型索引使用问题，如：tb中有主键id，普通索引tid，在执行SQL：select * from tb where id = 2 order by id 时，<br>
+extra为空，这里的id值没带引号，如果带上引号extra也为空。</p>
+<p>2.当 select * from tb where tid = 2 order by tid，tid为普通索引，这时tid的值带引号和不带引号就会有区别，带引号时extra会提示额外的排序，不带引号时extra为空，这是怎么一回事？<br>
+<a href="http://zhdba-file.b0.upaiyun.com/mysqlops/wp-content/uploads/sites/3/2014/07/zhdba.png"><img class="alignnone size-medium wp-image-7988" alt="zhdba" src="http://zhdba-file.b0.upaiyun.com/mysqlops/wp-content/uploads/sites/3/2014/07/zhdba-300x81.png" width="300" height="81"></a></p>
+<p><strong>mysqlops的回答：</strong></p>
+<p>1.当字段类型为：INT；<span id="more-7986"></span></p>
+<p>2. 传入的值为：字符串类型；</p>
+<p>3.WHERE条件中的整型字段的传入值用单引号或双引号；</p>
+<p>上述描述的前提条件下，会对把传入的 值类型 转换为 字段定义的数据类型，故WHERE 条件是可以使用到索引的，但从数据</p>
+<p>库表读出到内存块后的值会被 转换为 传入值的数据类型，从而导致ORDER BY无法使用到索引解释为何ORDER BY ID没有外</p>
+<p>部排序 或extra的内容为空，那是因为WHERE ID=’2′ 按主键查询只能查到唯一的一条记录，故不需要排序；</p>
+<p>ORDER BY tid 时，WHERE tid=’2′ 按普通索引去查找的话，能查找到的数据条数会大于1条，加上数据类型隐形转换了，为</p>
+<p>此需要再额外进行排序和extra部分有内容显示；</p>
+<p><strong>总结：</strong></p>
+<p>数据库中要尽量避免发生数据隐形转换的危险，极端情况下可能会发生偶尔的WHERE条件都无法使用到索引，故开发规范</p>
+<p>非常重要。</p>
+					</div>
