@@ -1,0 +1,151 @@
+---
+layout: default
+title: test
+description: 本sssssss务器
+categories: [Git]
+tags: [Git]
+---
+
+<td class="t_f" id="postmessage_9713586">
+首先，找一台监控机，确保有登陆各从库查看复制状态的权限。<br>
+比如在一台主机名为Admin的机器上，编写监控脚本slavedm.sh，保存如 /server/daemon/slavedm.sh<br>
+<br>
+slavedm.sh源码<br>
+<div class="blockcode"><div id="code_5JT"><ol><li>#!/bin/sh<br>
+</li><li>#<br>
+</li><li># Slave Daemon<br>
+</li><li># @version 1.0<br>
+</li><li># @author Hellex &lt;[email]Hellex@live.com[/email]&gt;<br>
+</li><li>#<br>
+</li><li><br>
+</li><li>#从库服务器配置，分别是主机名，端口，用户名，密码，请一一对应<br>
+</li><li>mysql_host=("db2" "db3" "db4" "db5" "db6" "db7" "db8" "db9" "db10" "db11" "db12" "db13")<br>
+</li><li>mysql_port=(3306 3306 3306 3306 3306 3306 3406 3306 3307 3406 3309 3310)<br>
+</li><li>mysql_user=("dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser" "dmuser")<br>
+</li><li>mysql_password=("dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword" "dmpassword")<br>
+</li><li><br>
+</li><li>#loop for checking<br>
+</li><li>len=${#mysql_host[*]}<br>
+</li><li>i=0<br>
+</li><li>while&nbsp;&nbsp;[ $i -lt $len ]<br>
+</li><li>do<br>
+</li><li>&nbsp; &nbsp; #get slave status<br>
+</li><li>&nbsp; &nbsp; status=`/usr/local/webserver/mysql/bin/mysql&nbsp;&nbsp;-h${mysql_host[$i]} -u${mysql_user[$i]} -p${mysql_password[$i]} -P${mysql_port[$i]} -e"SHOW SLAVE STATUS\G"`<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp; #check SQL Thread<br>
+</li><li>&nbsp; &nbsp; if (echo "$status"|egrep "Slave_IO_Running: *Yes" 2&gt;&amp;1 &gt; /dev/null) &amp;&amp; (echo "$status"|egrep "Slave_SQL_Running: *No" 2&gt;&amp;1 &gt; /dev/null)<br>
+</li><li>&nbsp; &nbsp; then<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; #log error<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; sql_error=`echo "$status"|egrep "Last_SQL_Error:" | awk -F 'Last_SQL_Error:' '{printf $2}'`<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; sql_erroro=`echo "$status"|egrep "Last_SQL_Errno:" | awk -F 'Last_SQL_Errno:' '{printf $2}'`<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; echo `date +%y%m%d%H%M%S`"&nbsp; &nbsp; "${mysql_host[$i]}:${mysql_port[$i]}"&nbsp; &nbsp; "${sql_erroro}"&nbsp; &nbsp; "${sql_error} &gt;&gt; /server/daemon/slavedm.log<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; #stop slave<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; /usr/local/webserver/mysql/bin/mysql&nbsp;&nbsp;-h${mysql_host[$i]} -u${mysql_user[$i]} -p${mysql_password[$i]} -P${mysql_port[$i]} -e"STOP SLAVE" 2&gt;&amp;1 &gt; /dev/null<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; #skip error<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; /usr/local/webserver/mysql/bin/mysql&nbsp;&nbsp;-h${mysql_host[$i]} -u${mysql_user[$i]} -p${mysql_password[$i]} -P${mysql_port[$i]} -e"SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1" 2&gt;&amp;1 &gt; /dev/null<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; #start slave<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp; /usr/local/webserver/mysql/bin/mysql&nbsp;&nbsp;-h${mysql_host[$i]} -u${mysql_user[$i]} -p${mysql_password[$i]} -P${mysql_port[$i]} -e"START SLAVE" 2&gt;&amp;1 &gt; /dev/null<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp; fi<br>
+</li><li>&nbsp; &nbsp; let i++<br>
+</li><li>done</li></ol></div><em onclick="copycode($('code_5JT'));">复制代码</em></div><br>
+
+<br>
+slavedm.sh脚本做的工作就是检查从库复制的IO及SQL进程，当IO进程正常，SQL不正常的时候，说明SQL执行有错误，这时候脚本自动把错误记录下来。<br>
+格式如:yymmddHHMMSS&nbsp; &nbsp; 主机名:端口&nbsp; &nbsp; 错误代码&nbsp; &nbsp; 错误信息<br>
+这些错误会记录到slavedm.log文件<br>
+记录完错误之后，slavedm.sh执行跳过错误语句<br>
+/usr/local/webserver/mysql/bin/mysql工具的地址请根据自己的情况更改，这里就不设为变量了。<br>
+<br>
+<br>
+给slavedm.sh添加可执行权限<br>
+<div class="blockcode"><div id="code_pq5"><ol><li>#chmod +x /server/daemon/slavedm.sh</li></ol></div><em onclick="copycode($('code_pq5'));">复制代码</em></div><br>
+
+<br>
+
+<br>
+我们来做一下测试<br>
+登陆主库，在test库建一个test3表，并给它加一个index<br>
+<div class="blockcode"><div id="code_HW4"><ol><li>mysql&gt; use test<br>
+</li><li>Database changed<br>
+</li><li><br>
+</li><li>mysql&gt; create table test3 (id int(10));<br>
+</li><li>Query OK, 0 rows affected (0.00 sec)<br>
+</li><li><br>
+</li><li>mysql&gt; alter table test3 add index id(id);<br>
+</li><li>Query OK, 0 rows affected (0.01 sec)<br>
+</li><li>Records: 0&nbsp;&nbsp;Duplicates: 0&nbsp;&nbsp;Warnings: 0</li></ol></div><em onclick="copycode($('code_HW4'));">复制代码</em></div><br>
+
+<br>
+登陆其中一台从库，假如db11<br>
+<div class="blockcode"><div id="code_GC4"><ol><li>mysql&gt; use test<br>
+</li><li>Database changed<br>
+</li><li><br>
+</li><li>mysql&gt; show tables;<br>
+</li><li>+----------------+<br>
+</li><li>| Tables_in_test |<br>
+</li><li>+----------------+<br>
+</li><li>| test1&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; | <br>
+</li><li>| test2&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; | <br>
+</li><li>| test3&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; | <br>
+</li><li>+----------------+<br>
+</li><li>3 rows in set (0.00 sec)<br>
+</li><li>[color=Blue]可以看到test3出现在test库里，我们把它的索引删除，然后再回到主库删除索引，以引发复制错误[/color]<br>
+</li><li>mysql&gt; alter table test3 drop index id;<br>
+</li><li>Query OK, 0 rows affected (0.01 sec)<br>
+</li><li>Records: 0&nbsp;&nbsp;Duplicates: 0&nbsp;&nbsp;Warnings: 0</li></ol></div><em onclick="copycode($('code_GC4'));">复制代码</em></div><br>
+
+<br>
+回到主库<br>
+<div class="blockcode"><div id="code_QTB"><ol><li>mysql&gt; alter table test3 drop index id;<br>
+</li><li>Query OK, 0 rows affected (0.05 sec)<br>
+</li><li>Records: 0&nbsp;&nbsp;Duplicates: 0&nbsp;&nbsp;Warnings: 0</li></ol></div><em onclick="copycode($('code_QTB'));">复制代码</em></div><br>
+
+<br>
+再看db11<br>
+<div class="blockcode"><div id="code_YB4"><ol><li>mysql&gt; show slave status\G<br>
+</li><li><br>
+</li><li>......省略其他部份<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Slave_IO_Running: Yes<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Slave_SQL_Running: No<br>
+</li><li><br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Last_SQL_Errno: 1091<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Last_SQL_Error: Error 'Can't DROP 'id'; check that column/key exists' on query. Default database: 'test'. Query: 'alter table test3 drop index id'<br>
+</li><li>1 row in set (0.00 sec)<br>
+</li><li><br>
+</li><li>[color=Blue]可以看到复制错误了[/color]</li></ol></div><em onclick="copycode($('code_YB4'));">复制代码</em></div><br>
+
+<br>
+然后我们到监控机执行slavedm.sh<br>
+<div class="blockcode"><div id="code_Zzo"><ol><li>#/server/daemon/slavedm.sh</li></ol></div><em onclick="copycode($('code_Zzo'));">复制代码</em></div><br>
+
+<br>
+再看db11<br>
+<div class="blockcode"><div id="code_UQZ"><ol><li>mysql&gt; show slave status\G<br>
+</li><li><br>
+</li><li>......省略其他部份<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp; Slave_IO_Running: Yes<br>
+</li><li>&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;&nbsp; &nbsp;Slave_SQL_Running: Yes<br>
+</li><li>[color=Blue]可以看到复制恢复正常了[/color]</li></ol></div><em onclick="copycode($('code_UQZ'));">复制代码</em></div><br>
+
+<br>
+
+<br>
+看监控日志<br>
+<div class="blockcode"><div id="code_qr2"><ol><li>#cat /server/daemon/slavedm.log<br>
+</li><li>081130192001&nbsp; &nbsp; db11:3306&nbsp; &nbsp;&nbsp;&nbsp;1091&nbsp; &nbsp;&nbsp;&nbsp;Error 'Can't DROP 'id'; check that column/key exists' on query. Default database: 'test'. Query: 'alter table test3 drop index id'</li></ol></div><em onclick="copycode($('code_qr2'));">复制代码</em></div><br>
+
+<br>
+说明slavedm.sh脚本功能很正常。<br>
+<br>
+<br>
+我们把slavedm.sh添加到crontab，每5分钟执行一次<br>
+<div class="blockcode"><div id="code_CDz"><ol><li>#crontab -e</li></ol></div><em onclick="copycode($('code_CDz'));">复制代码</em></div><br>
+添加以下内容<br>
+<div class="blockcode"><div id="code_3Z9"><ol><li>#slave daemon<br>
+</li><li>0-55/5 * * * * /server/daemon/slavedm.sh</li></ol></div><em onclick="copycode($('code_3Z9'));">复制代码</em></div><br>
+[<i> 本帖最后由 Hellex 于 2008-11-30 19:22 编辑 </i>]</td>
