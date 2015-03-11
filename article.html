@@ -3,11 +3,10 @@ layout: article
 title: Yucz's 个人博客
 ---
 aaaaaaaaaa
-{{ paginator.paginate }}
 {% for post in paginator.posts %}
 <div class="post main">
 	<div class="date">		
-		<div class="background">
+		<div class="background">yyuyuyuyuyu
 			<span class="day">{{ post.date | date_to_string | truncatewords: 2 | remove: '...' }}</span><br>
 			<span class="month">{{ post.date | date_to_string | split: ' ' | last }}</span><br>
 		</div>
