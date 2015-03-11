@@ -1,0 +1,49 @@
+---
+layout: default
+title: left join 和 left outer join 的区别
+description: left join 和 left outer join 的区别
+categories: [mysql]
+tags: [SQL语法],[mysql]
+---
+
+
+<div id="cnblogs_post_body"><p><img src="http://images.csdn.net/syntaxhighlighting/OutliningIndicators/None.gif" alt="" align="top">
+通俗的讲：  
+  A   left   join   B   的连接的记录数与A表的记录数同  
+  A   right   join   B   的连接的记录数与B表的记录数同    
+  A   left   join   B   等价B   right   join   A  
+   
+   
+  table   A:  
+Field_K,   Field_A  
+  1                       a  
+  3                       b  
+  4                       c  
+   
+  table   B:  
+  Field_K,   Field_B  
+  1                       x  
+  2                       y  
+  4                       z  
+   
+  select   a.Field_K,   a.Field_A,   b.Field_K,   b.Field_B  
+  from   a   left   join   b   on   a.Field_K=b.Field_K  
+   
+  Field_K         Field_A         Field_K         Field_B          
+  ----------   ----------   ----------   ----------    
+  1                     a                     1                     x                    
+  3                     b                     NULL               NULL  
+  4                     c                     4                     z                    
+   
+  select   a.Field_K,   a.Field_A,   b.Field_K,   b.Field_B  
+  from   a   right   join   b   on   a.Field_K=b.Field_K  
+   
+  Field_K         Field_A         Field_K         Field_B          
+  ----------   ----------   ----------   ----------    
+  1                     a                     1                     x                    
+  NULL               NULL               2                     y                    
+  4                     c                     4                     z
+  
+  
+  
+</div>
