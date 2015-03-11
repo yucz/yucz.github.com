@@ -1,0 +1,186 @@
+---
+layout: default
+title: 尝试mysqlbinlog的flashback功能
+description: mysqlbinlog flashback功能是淘宝彭立勋(http://www.penglixun.com/)的一个很强劲的作品．主要功能：　对rows格式的binlog可以进行逆向操作．delete反向生成insert, update生成反向的update,insert反向生成delete．让dba同学们也有机会简单的恢复数据．可恢复:insert, update,delete相关的操作
+categories: [mysql]
+tags: [数据库管理]
+---
+
+<div class="entry-content cf">
+
+	<!-- Widgets: Before Post Content -->
+	
+	<p><strong>作者：吴炳锡　来源：http://www.mysqlsupport.cn/ 联系方式： wubingxi#gmail.com 转载请注明作/译者和出处，并且不能用于商业用途，违者必究.</strong></p>
+<p><strong>简介：</strong><br>
+mysqlbinlog flashback功能是淘宝彭立勋(http://www.penglixun.com/)的一个很强劲的作品．<br>
+主要功能：　对rows格式的binlog可以进行逆向操作．delete反向生成insert, update生成反向的update,insert反向生成delete．让dba同学们也有机会简单的恢复数据．<strong>可恢复:insert, update,delete相关的操作</strong>．</p>
+<p><strong>演示一下使用过程：</strong></p>
+<p>生成带有flashback mysqlbinlog 工具：</p>
+<p>项止主页：http://mysql.taobao.org/index.php/Patch_source_code#Add_flashback_feature_for_mysqlbinlog</p>
+<p>准备好MySQL-5.5.18的源码，这里用的Percona-MySQL-5.5.18源码</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326b8138649197" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; position: absolute; z-index: 2;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码" style="display: none;"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">cd mysql-5.5.18
+wget http://mysql.taobao.org/images/0/0f/5.5.18_flashback.diff
+patch -p0&lt;5.5.18_flashback.diff</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326b8138649197-1">1</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326b8138649197-2">2</div><div class="crayon-num" data-line="crayon-54880da6326b8138649197-3">3</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326b8138649197-1"><span class="crayon-r">cd</span><span class="crayon-h"> </span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-cn">5.5.18</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326b8138649197-2"><span class="crayon-e">wget </span><span class="crayon-v">http</span><span class="crayon-o">:</span><span class="crayon-o">/</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-e">.taobao</span><span class="crayon-e">.org</span><span class="crayon-o">/</span><span class="crayon-v">images</span><span class="crayon-o">/</span><span class="crayon-cn">0</span><span class="crayon-o">/</span><span class="crayon-cn">0f</span><span class="crayon-o">/</span><span class="crayon-cn">5.5.18_flashback.diff</span></div><div class="crayon-line" id="crayon-54880da6326b8138649197-3"><span class="crayon-r">patch</span><span class="crayon-h"> </span><span class="crayon-o">-</span><span class="crayon-v">p0</span><span class="crayon-o">&lt;</span><span class="crayon-cn">5.5.18_flashback.diff</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0006 seconds] -->
+<p>即可以看到了mysqlbinlog , 因这里只为要mysqlbinlog这个程序，所以编译MySQL时没加特别的参数．该工具是否具备flashback功能可以确认一下是否有 “-B” 这个参数．</p>
+<p><strong>开始实验</strong>：</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326c2470951686" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; position: absolute; z-index: 2;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码" style="display: none;"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">mysql test
+mysql&gt; select count(*) from pic_url;
++----------+
+| count(*) |
++----------+
+| 786476 |
++----------+
+1 row in set (0.11 sec)
+mysql&gt;delete from pic_url;
+Query OK, 786476 rows affected (22.81 sec)
+mysql&gt;select count(*) from pic_url;
++----------+
+| count(*) |
++----------+
+| 0 |
++----------+
+1 row in set (0.03 sec)
+
+mysql&gt;show binary logs;
+...
+| mysql-bin.000011 | 195001447 |
+| mysql-bin.000012 | 106 |
++------------------+-----------+</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326c2470951686-1">1</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-2">2</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-3">3</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-4">4</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-5">5</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-6">6</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-7">7</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-8">8</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-9">9</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-10">10</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-11">11</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-12">12</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-13">13</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-14">14</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-15">15</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-16">16</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-17">17</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-18">18</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-19">19</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-20">20</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-21">21</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326c2470951686-22">22</div><div class="crayon-num" data-line="crayon-54880da6326c2470951686-23">23</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326c2470951686-1"><span class="crayon-e">mysql </span><span class="crayon-r">test</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-2"><span class="crayon-v">mysql</span><span class="crayon-o">&gt;</span><span class="crayon-h"> </span><span class="crayon-e">select </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-e">from </span><span class="crayon-v">pic_url</span><span class="crayon-sy">;</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-3"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-4"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-5"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-6"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-cn">786476</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-7"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-8"><span class="crayon-cn">1</span><span class="crayon-h"> </span><span class="crayon-e">row </span><span class="crayon-st">in</span><span class="crayon-h"> </span><span class="crayon-e">set</span><span class="crayon-h"> </span><span class="crayon-sy">(</span><span class="crayon-cn">0.11</span><span class="crayon-h"> </span><span class="crayon-v">sec</span><span class="crayon-sy">)</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-9"><span class="crayon-v">mysql</span><span class="crayon-o">&gt;</span><span class="crayon-e">delete </span><span class="crayon-e">from </span><span class="crayon-v">pic_url</span><span class="crayon-sy">;</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-10"><span class="crayon-e">Query </span><span class="crayon-v">OK</span><span class="crayon-sy">,</span><span class="crayon-h"> </span><span class="crayon-cn">786476</span><span class="crayon-h"> </span><span class="crayon-e">rows </span><span class="crayon-e">affected</span><span class="crayon-h"> </span><span class="crayon-sy">(</span><span class="crayon-cn">22.81</span><span class="crayon-h"> </span><span class="crayon-v">sec</span><span class="crayon-sy">)</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-11"><span class="crayon-v">mysql</span><span class="crayon-o">&gt;</span><span class="crayon-e">select </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-e">from </span><span class="crayon-v">pic_url</span><span class="crayon-sy">;</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-12"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-13"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-14"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-15"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-cn">0</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-16"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-17"><span class="crayon-cn">1</span><span class="crayon-h"> </span><span class="crayon-e">row </span><span class="crayon-st">in</span><span class="crayon-h"> </span><span class="crayon-e">set</span><span class="crayon-h"> </span><span class="crayon-sy">(</span><span class="crayon-cn">0.03</span><span class="crayon-h"> </span><span class="crayon-v">sec</span><span class="crayon-sy">)</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-18">&nbsp;</div><div class="crayon-line" id="crayon-54880da6326c2470951686-19"><span class="crayon-v">mysql</span><span class="crayon-o">&gt;</span><span class="crayon-e">show </span><span class="crayon-e">binary </span><span class="crayon-v">logs</span><span class="crayon-sy">;</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-20"><span class="crayon-sy">.</span><span class="crayon-sy">.</span><span class="crayon-sy">.</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-21"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-v">bin</span><span class="crayon-sy">.</span><span class="crayon-cn">000011</span><span class="crayon-h"> </span><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-cn">195001447</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326c2470951686-22"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-v">bin</span><span class="crayon-sy">.</span><span class="crayon-cn">000012</span><span class="crayon-h"> </span><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-cn">106</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line" id="crayon-54880da6326c2470951686-23"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">-</span><span class="crayon-o">+</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0032 seconds] -->
+<p><strong>Tips:</strong><br>
+定位日值，一般看当前的log如果当前的log文件比较小，那么就是上一个文件至于为什么，这里就不讲了．也可以用mysqlbinlog 去实际查看确认一下．</p>
+<p>接下来就是要找到这个delete在log中position的变化区间了．这个没什么技巧，通常使用：</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326c6438921755" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; z-index: 4;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码" style="display: none;"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">./mysqlbinlog -v --base64-output=decode-rows 　/u1/mysql/logs/mysql-bin.000011 &gt;11.sql</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326c6438921755-1">1</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326c6438921755-1"><span class="crayon-sy">.</span><span class="crayon-o">/</span><span class="crayon-v">mysqlbinlog</span><span class="crayon-h"> </span><span class="crayon-o">-</span><span class="crayon-v">v</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">base64</span><span class="crayon-o">-</span><span class="crayon-v">output</span><span class="crayon-o">=</span><span class="crayon-v">decode</span><span class="crayon-o">-</span><span class="crayon-i">rows</span><span class="crayon-h"> </span>　<span class="crayon-o">/</span><span class="crayon-v">u1</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">/</span><span class="crayon-v">logs</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-v">bin</span><span class="crayon-sy">.</span><span class="crayon-cn">000011</span><span class="crayon-h"> </span><span class="crayon-o">&gt;</span><span class="crayon-cn">11.sql</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0007 seconds] -->
+<p>然后对11.sql文件进行搜索了表名，找到相应的节点．大表删除通常最后的stop点都在文件最后．找到节点后就可以：</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326ca492538454" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; z-index: 4;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">./mysqlbinlog -v --base64-output=decode-rows -B --start-position=377 --stop-position=195001377 /u1/mysql/logs/mysql-bin.000011&gt;B11.sql</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326ca492538454-1">1</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326ca492538454-1"><span class="crayon-sy">.</span><span class="crayon-o">/</span><span class="crayon-v">mysqlbinlog</span><span class="crayon-h"> </span><span class="crayon-o">-</span><span class="crayon-v">v</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">base64</span><span class="crayon-o">-</span><span class="crayon-v">output</span><span class="crayon-o">=</span><span class="crayon-v">decode</span><span class="crayon-o">-</span><span class="crayon-v">rows</span><span class="crayon-h"> </span><span class="crayon-o">-</span><span class="crayon-v">B</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">start</span><span class="crayon-o">-</span><span class="crayon-v">position</span><span class="crayon-o">=</span><span class="crayon-cn">377</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">stop</span><span class="crayon-o">-</span><span class="crayon-v">position</span><span class="crayon-o">=</span><span class="crayon-cn">195001377</span><span class="crayon-h"> </span><span class="crayon-o">/</span><span class="crayon-v">u1</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">/</span><span class="crayon-v">logs</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-v">bin</span><span class="crayon-sy">.</span><span class="crayon-cn">000011</span><span class="crayon-o">&gt;</span><span class="crayon-v">B11</span><span class="crayon-e">.sql</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0010 seconds] -->
+<p>同样对B11.sql这个文件验证一下．看看结尾是和预期一样．验证OK后就可以：</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326ce918708052" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; z-index: 4;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码" style="display: none;"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">./mysqlbinlog -B --start-position=377 --stop-position=195001377 /u1/mysql/logs/mysql-bin.000011|mysql test</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326ce918708052-1">1</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326ce918708052-1"><span class="crayon-sy">.</span><span class="crayon-o">/</span><span class="crayon-v">mysqlbinlog</span><span class="crayon-h"> </span><span class="crayon-o">-</span><span class="crayon-v">B</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">start</span><span class="crayon-o">-</span><span class="crayon-v">position</span><span class="crayon-o">=</span><span class="crayon-cn">377</span><span class="crayon-h"> </span><span class="crayon-o">--</span><span class="crayon-v">stop</span><span class="crayon-o">-</span><span class="crayon-v">position</span><span class="crayon-o">=</span><span class="crayon-cn">195001377</span><span class="crayon-h"> </span><span class="crayon-o">/</span><span class="crayon-v">u1</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">/</span><span class="crayon-v">logs</span><span class="crayon-o">/</span><span class="crayon-v">mysql</span><span class="crayon-o">-</span><span class="crayon-v">bin</span><span class="crayon-sy">.</span><span class="crayon-cn">000011</span><span class="crayon-o">|</span><span class="crayon-e">mysql </span><span class="crayon-r">test</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0008 seconds] -->
+<p></p>
+<p>如果表比较大，则执行着比较慢．如不出错请耐心等待．执行完毕后：</p><!-- Crayon Syntax Highlighter v2.6.8 -->
+
+		<div id="crayon-54880da6326d2759903892" class="crayon-syntax crayon-theme-classic crayon-font-monaco crayon-os-mac print-yes notranslate" data-settings=" minimize scroll-mouseover" style="margin-top: 12px; margin-bottom: 12px; font-size: 12px !important; line-height: 15px !important; height: auto;">
+		
+			<div class="crayon-toolbar" data-settings=" mouseover overlay hide delay" style="font-size: 12px !important; height: 18px !important; line-height: 18px !important; margin-top: -18px; display: none; position: absolute; z-index: 2;"><span class="crayon-title"></span>
+			<div class="crayon-tools" style="font-size: 12px !important;height: 18px !important; line-height: 18px !important;"><div class="crayon-button crayon-nums-button crayon-pressed" title="切换是否显示行编号"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-plain-button" title="纯文本显示代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-wrap-button" title="切换自动换行"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-expand-button" title="点击展开代码" style="display: none;"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-copy-button" title="复制代码"><div class="crayon-button-icon"></div></div><div class="crayon-button crayon-popup-button" title="在新窗口中显示代码"><div class="crayon-button-icon"></div></div><span class="crayon-language">Shell</span></div></div>
+			<div class="crayon-info" style="min-height: 16.8px !important; line-height: 16.8px !important;"></div>
+			<div class="crayon-plain-wrap"><textarea wrap="soft" class="crayon-plain print-no" data-settings="dblclick" readonly="" style="tab-size: 4; font-size: 12px !important; line-height: 15px !important; z-index: 0; opacity: 0; overflow: hidden;">mysql&gt;select count(*) from pic_url;
++----------+
+| count(*) |
++----------+
+| 786476 |
++----------+
+1 row in set (0.11 sec)</textarea></div>
+			<div class="crayon-main" style="position: relative; z-index: 1; overflow: hidden;">
+				<table class="crayon-table">
+					<tbody><tr class="crayon-row">
+				<td class="crayon-nums " data-settings="show">
+					<div class="crayon-nums-content" style="font-size: 12px !important; line-height: 15px !important;"><div class="crayon-num" data-line="crayon-54880da6326d2759903892-1">1</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326d2759903892-2">2</div><div class="crayon-num" data-line="crayon-54880da6326d2759903892-3">3</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326d2759903892-4">4</div><div class="crayon-num" data-line="crayon-54880da6326d2759903892-5">5</div><div class="crayon-num crayon-striped-num" data-line="crayon-54880da6326d2759903892-6">6</div><div class="crayon-num" data-line="crayon-54880da6326d2759903892-7">7</div></div>
+				</td>
+						<td class="crayon-code"><div class="crayon-pre" style="font-size: 12px !important; line-height: 15px !important; -moz-tab-size:4; -o-tab-size:4; -webkit-tab-size:4; tab-size:4;"><div class="crayon-line" id="crayon-54880da6326d2759903892-1"><span class="crayon-v">mysql</span><span class="crayon-o">&gt;</span><span class="crayon-e">select </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-e">from </span><span class="crayon-v">pic_url</span><span class="crayon-sy">;</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326d2759903892-2"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326d2759903892-3"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-e">count</span><span class="crayon-sy">(</span><span class="crayon-o">*</span><span class="crayon-sy">)</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326d2759903892-4"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326d2759903892-5"><span class="crayon-o">|</span><span class="crayon-h"> </span><span class="crayon-cn">786476</span><span class="crayon-h"> </span><span class="crayon-o">|</span></div><div class="crayon-line crayon-striped-line" id="crayon-54880da6326d2759903892-6"><span class="crayon-o">+</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">--</span><span class="crayon-o">+</span></div><div class="crayon-line" id="crayon-54880da6326d2759903892-7"><span class="crayon-cn">1</span><span class="crayon-h"> </span><span class="crayon-e">row </span><span class="crayon-st">in</span><span class="crayon-h"> </span><span class="crayon-e">set</span><span class="crayon-h"> </span><span class="crayon-sy">(</span><span class="crayon-cn">0.11</span><span class="crayon-h"> </span><span class="crayon-v">sec</span><span class="crayon-sy">)</span></div></div></td>
+					</tr>
+				</tbody></table>
+			</div>
+		</div>
+<!-- [Format Time: 0.0010 seconds] -->
+<p>数据又恢复了．</p>
+<p><strong>注意：</strong><br>
+为防止恢复报错需要把：max_allowed_packet 改到最大值1G;<br>
+mysql&gt;set global max_allowed_packet=1024*1024*1024;</p>
+<p>#max_allow_packet大小不够时报错如下：<br>
+ERROR 1153 (08S01) at line 403133: Got a packet bigger than ‘max_allowed_packet’ bytes</p>
+<p>恢复操作有风险，请在备库操作或是在经验丰富的同学指导下进行．</p>
+<p>二进制文件上传不到服务器上，传到github上一个二进制文件:https://github.com/wubx/mysql-binlog-statistic/tree/master/bin 　在64的位的linux系统编译的． 有需要的直接下载．</p>
+
+	<!-- Widgets: After Post Content -->
+	
+	
+</div>
