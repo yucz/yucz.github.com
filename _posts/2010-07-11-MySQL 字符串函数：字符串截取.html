@@ -1,0 +1,79 @@
+---
+layout: default
+title: MySQL 字符串函数：字符串截取
+description: 字符串截取相关的使用说明
+categories: [mysql]
+tags: [SQL语法],[mysql]
+---
+
+
+<div id="cnblogs_post_body"><h2>MySQL 字符串函数：字符串截取 </h2>
+<p>MySQL 字符串截取函数：left(), right(), substring(), substring_index()。还有 mid(), substr()。其中，mid(), substr() 等价于 substring() 函数，substring() 的功能非常强大和灵活。 </p>
+<p class="bluehead">1. 字符串截取：left(str, length) </p><pre class="sqlcode">mysql&gt; select left('sqlstudy.com', 3);
++-------------------------+
+| left('sqlstudy.com', 3) |
++-------------------------+
+| sql                     |
++-------------------------+
+</pre>
+<p class="bluehead">2. 字符串截取：right(str, length) </p><pre class="sqlcode">mysql&gt; select right('sqlstudy.com', 3);
++--------------------------+
+| right('sqlstudy.com', 3) |
++--------------------------+
+| com                      |
++--------------------------+
+</pre>
+<p class="bluehead">3. 字符串截取：substring(str, pos); substring(str, pos, len) </p>
+<p>3.1 从字符串的第 4 个字符位置开始取，直到结束。 </p><pre class="sqlcode">mysql&gt; select substring('sqlstudy.com', 4);
++------------------------------+
+| substring('sqlstudy.com', 4) |
++------------------------------+
+| study.com                    |
++------------------------------+
+</pre>
+<p>3.2 从字符串的第 4 个字符位置开始取，只取 2 个字符。 </p><pre class="sqlcode">mysql&gt; select substring('sqlstudy.com', 4, 2);
++---------------------------------+
+| substring('sqlstudy.com', 4, 2) |
++---------------------------------+
+| st                              |
++---------------------------------+
+</pre>
+<p>3.3 从字符串的第 4 个字符位置（倒数）开始取，直到结束。 </p><pre class="sqlcode">mysql&gt; select substring('sqlstudy.com', -4);
++-------------------------------+
+| substring('sqlstudy.com', -4) |
++-------------------------------+
+| .com                          |
++-------------------------------+
+</pre>
+<p>3.4 从字符串的第 4 个字符位置（倒数）开始取，只取 2 个字符。 </p><pre class="sqlcode">mysql&gt; select substring('sqlstudy.com', -4, 2);
++----------------------------------+
+| substring('sqlstudy.com', -4, 2) |
++----------------------------------+
+| .c                               |
++----------------------------------+
+</pre>
+<p>我们注意到在函数 substring(str,pos, len)中， pos 可以是负值，但 len 不能取负值。 </p>
+<p class="bluehead">4. 字符串截取：substring_index(str,delim,count) </p>
+<p>4.1 截取第二个 '.' 之前的所有字符。 </p><pre class="sqlcode">mysql&gt; select substring_index('www.sqlstudy.com.cn', '.', 2);
++------------------------------------------------+
+| substring_index('www.sqlstudy.com.cn', '.', 2) |
++------------------------------------------------+
+| www.sqlstudy                                   |
++------------------------------------------------+
+</pre>
+<p>4.2 截取第二个 '.' （倒数）之后的所有字符。 </p><pre class="sqlcode">mysql&gt; select substring_index('www.sqlstudy.com.cn', '.', -2);
++-------------------------------------------------+
+| substring_index('www.sqlstudy.com.cn', '.', -2) |
++-------------------------------------------------+
+| com.cn                                          |
++-------------------------------------------------+
+</pre>
+<p>4.3 如果在字符串中找不到 delim 参数指定的值，就返回整个字符串 </p><pre class="sqlcode">mysql&gt; select substring_index('www.sqlstudy.com.cn', '.coc', 1);
++---------------------------------------------------+
+| substring_index('www.sqlstudy.com.cn', '.coc', 1) |
++---------------------------------------------------+
+| www.sqlstudy.com.cn                               |
++---------------------------------------------------+
+</pre>
+<p>&nbsp;</p>
+</div>
