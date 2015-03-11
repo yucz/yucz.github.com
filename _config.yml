@@ -1,2 +1,4 @@
 baseurl: 
 production_url: yucz.github.io
+paginate: 5
+paginate_path: "page:num"
