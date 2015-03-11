@@ -1,0 +1,226 @@
+---
+layout: default
+title: percona-toolkit 之 【pt-table-checksum】、【pt-table-sync】说明 
+description: 工作上需要把一个从库提升为主库，但对从库和主库的数据一致性不能保证一样，所以就利用 pt-table-checksum 工作来检查主从的一致性（之前写过用1.0.1的版本可以进行操作的文章，但是在新版本操作就不行了，只能重新来过）以及通过 pt-table-sync 如何修复这些不一致的数据。 
+categories: [mysql]
+tags: [percona]
+---
+
+<div id="cnblogs_post_body"><p><span style="color: #000000;"><strong>摘要：</strong></span></p>
+<p style="margin-top: 0.05cm; margin-bottom: 0.05cm; widows: 2; orphans: 2;" align="LEFT"><span style="color: #000000;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 工作上需要把一个从库提升为主库，但对从库和主库的数据一致性不能保证一样，所以就利用 pt-table-checksum 工作来检查主从的一致性（之前写过用1.0.1的版本可以进行操作的文章，但是在新版本操作就不行了，只能重新来过）以及通过 pt-table-sync 如何修复这些不一致的数据。</span></p>
+<p><span style="color: #000000;"><strong>前提：</strong></span></p>
+<p><span style="color: #000000;">下载地址：</span><span style="color: #000000;">wget</span> <a href="http://www.percona.com/downloads/percona-toolkit/2.2.2/">www.percona.com/downloads/percona-toolkit/2.2.2/percona-toolkit-2.2.2.tar.gz</a></p>
+<p><span style="color: #000000;">安装方法：perl Makefile.PL；make；make install</span></p>
+<p><span style="color: #000000;"><strong>使用方法：</strong></span></p>
+<div class="cnblogs_code">
+<pre>pt-table-checksum [OPTIONS] [DSN]</pre>
+</div>
+<p><strong><a href="http://www.percona.com/doc/percona-toolkit/2.2/pt-table-checksum.html">pt-table-checksum</a><span style="color: #000000;">：</span></strong><span style="color: #000000;">在主&lt;M&gt;上<span id="result_box" class="short_text" lang="zh-CN">通过执行校验的查询</span><span id="result_box" class="short_text" lang="zh-CN">对复制的一致性进行检查，对比主从的校验值，从而产生结果。</span>DSN指向的是主的地址，<span id="result_box" class="short_text" lang="zh-CN">该工具的退出状态不为零，如果发现有任何差别，或者如果出现任何警告或错误，更多信息请见官网。</span></span><br><span style="color: #000000;">不制定任何参数，会直接对本地的所有数据库的表进行检查。</span></p>
+<div class="cnblogs_code">
+<pre>pt-table-checksum -S /var/run/mysqld/mysqld.sock</pre>
+</div>
+<p><span style="color: #000000;">现在开始使用它，检查主从状态：</span><br><span style="color: #000000;">表信息：</span></p>
+<div class="cnblogs_code" onclick="cnblogs_code_show('3a5777a9-e091-4650-a544-5d1ed8fc9f05')"><img id="code_img_closed_3a5777a9-e091-4650-a544-5d1ed8fc9f05" class="code_img_closed" src="http://images.cnblogs.com/OutliningIndicators/ContractedBlock.gif" alt=""><img id="code_img_opened_3a5777a9-e091-4650-a544-5d1ed8fc9f05" class="code_img_opened" style="display: none;" onclick="cnblogs_code_hide('3a5777a9-e091-4650-a544-5d1ed8fc9f05',event)" src="http://images.cnblogs.com/OutliningIndicators/ExpandedBlockStart.gif" alt=""><span class="cnblogs_code_collapse">View Code </span>
+<div id="cnblogs_code_open_3a5777a9-e091-4650-a544-5d1ed8fc9f05" class="cnblogs_code_hide">
+<pre><span style="color: #000000;">主库：
+root</span><span style="color: #008000;">@localhost</span> : rep_test <span style="color: #800000; font-weight: bold;">04</span>:<span style="color: #800000; font-weight: bold;">17</span>:<span style="color: #800000; font-weight: bold;">29</span><span style="color: #808080;">&gt;</span><span style="color: #0000ff;">select</span> <span style="color: #808080;">*</span> <span style="color: #0000ff;">from</span><span style="color: #000000;"> test1;
+</span><span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span> id <span style="color: #808080;">|</span> name <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">1</span> <span style="color: #808080;">|</span> a    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #808080;">|</span> b    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">3</span> <span style="color: #808080;">|</span> c    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">4</span> <span style="color: #808080;">|</span> d    <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #800000; font-weight: bold;">4</span> rows <span style="color: #808080;">in</span> <span style="color: #0000ff;">set</span> (<span style="color: #800000; font-weight: bold;">0.00</span><span style="color: #000000;"> sec)
+
+从库：
+dba</span><span style="color: #008000;">@192</span>.<span style="color: #800000; font-weight: bold;">168.200</span>.<span style="color: #800000; font-weight: bold;">201</span> : rep_test <span style="color: #800000; font-weight: bold;">04</span>:<span style="color: #800000; font-weight: bold;">17</span>:<span style="color: #800000; font-weight: bold;">25</span><span style="color: #808080;">&gt;</span><span style="color: #0000ff;">select</span> <span style="color: #808080;">*</span> <span style="color: #0000ff;">from</span><span style="color: #000000;"> test1;
+</span><span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span> id <span style="color: #808080;">|</span> name <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">1</span> <span style="color: #808080;">|</span> a    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #808080;">|</span> b    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">4</span> <span style="color: #808080;">|</span> d    <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #800000; font-weight: bold;">3</span> rows <span style="color: #808080;">in</span> <span style="color: #0000ff;">set</span> (<span style="color: #800000; font-weight: bold;">0.00</span> sec)</pre>
+</div>
+</div>
+<p><strong><span style="color: #ff0000;">执行：</span></strong></p>
+<div class="cnblogs_code">
+<pre>zhoujy@zhoujy:~$<strong> pt-table-checksum  --nocheck-replication-filters --replicate=rep_test.checksums --databases=rep_test --tables=test1 h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root,p=<span style="color: #800080;">123456<span style="color: #000000;">,P=</span>3306</span><span style="color: #993300;">
+            TS ERRORS  DIFFS     ROWS  CHUNKS SKIPPED    TIME TABLE
+</span></strong><span style="color: #800080;">05</span>-08T16:<span style="color: #800080;">21</span>:<span style="color: #800080;">06</span>      <span style="color: #800080;">0</span>      <span style="color: #800080;">1</span>        <span style="color: #800080;">4</span>       <span style="color: #800080;">1</span>       <span style="color: #800080;">0</span>   <span style="color: #800080;">0.012</span> rep_test.test1</pre>
+</div>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>TS            ：完成检查的时间。
+ERRORS        ：检查时候发生错误和警告的数量。
+DIFFS         ：0表示一致，1表示不一致。当指定--no-replicate-check时，会一直为0，当指定--replicate-check-only会显示不同的信息。
+ROWS          ：表的行数。
+CHUNKS        ：被划分到表中的块的数目。
+SKIPPED       ：由于错误或警告或过大，则跳过块的数目。
+TIME          ：执行的时间。
+TABLE         ：被检查的表名。</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span class="short_text" style="color: #ff0000;" lang="zh-CN">参数的意义：</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre><span style="color: #000000;">--<span style="color: #ff0000;">nocheck-replication-filters</span> ：不检查复制过滤器，建议启用。后面可以用--databases来指定需要检查的数据库。<br>--<span style="color: #ff0000;">no-check-binlog-format</span>      : 不检查复制的binlog模式，要是binlog模式是<span style="color: #ff0000;">ROW</span>，则会报错。<br>--<span style="color: #ff0000;">replicate-check-only</span> :只显示不同步的信息。
+--<span style="color: #ff0000;">replicate</span>=   ：把checksum的信息写入到指定表中，建议直接写到被检查的数据库当中。 
+--<span style="color: #ff0000;">databases</span>=   ：指定需要被检查的数据库，多个则用逗号隔开。<br>--<span style="color: #ff0000;">tables</span>=      ：指定需要被检查的表，多个用逗号隔开
+h=127.0.0.1    ：<span style="color: #ff0000;">Master的地址
+</span>u=root         ：用户名
+p=123456       ：密码
+P=3306         ：端口</span><br><span style="color: #000000;">更多的参数请见官网，上面指出来的是常用的，对该场景够用的参数。</span></pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">好了，命令介绍完了，一起解释下</span><span style="color: #000000;">上面</span><span style="color: #000000;">执行的效果：</span><br><span style="color: #000000;">通过</span><strong><span style="color: #993300;">DIFFS</span></strong> <span style="color: #000000;">是1 就可以看出主从的表数据不一致。怎么不一致呢？ </span><span style="color: #000000;">通过</span><span style="color: #000000;">指定<span style="color: #ff0000;"><strong>--replicate=rep_test.checksums</strong> </span>参数，就说明把检查信息都写到了checksums表中。<br></span><span style="color: #000000;">进入SLAVE相应的库中查看checksums表的信息：</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>dba@<span style="color: #800080;">192.168</span>.<span style="color: #800080;">200.201</span> : rep_test <span style="color: #800080;">05</span>:<span style="color: #800080;">19</span>:<span style="color: #800080;">13</span>&gt;<span style="color: #0000ff;">select</span> *<span style="color: #000000;"> from checksums\G;
+</span>*************************** <span style="color: #800080;">1</span>. row ***************************<span style="color: #000000;">
+            db: rep_test
+           tbl: test1
+         <span style="color: #ff0000;">chunk</span>: </span><span style="color: #800080;">1</span><span style="color: #000000;">
+    chunk_time: </span><span style="color: #800080;">0.000257</span><span style="color: #000000;">
+   chunk_index: NULL
+lower_boundary: NULL
+upper_boundary: NULL 
+      <span style="color: #ff0000;">this_crc</span>: b24c0933   #从的
+      this_cnt: </span><span style="color: #800080;">3          #从的</span><span style="color: #000000;"><span style="color: #ff0000;">
+    master_crc</span>: f2890e1c   #主的
+    master_cnt: </span><span style="color: #800080;">4          #主的</span><span style="color: #000000;">
+            ts: </span><span style="color: #800080;">2013</span>-<span style="color: #800080;">05</span>-<span style="color: #800080;">08</span> <span style="color: #800080;">17</span>:<span style="color: #800080;">18</span>:<span style="color: #800080;">18</span>
+<span style="color: #800080;">1</span> row <span style="color: #0000ff;">in</span> set (<span style="color: #800080;">0.00</span> sec)</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">通过上面的 this_crc &lt;&gt; master_crc 更能清楚的看出他们的不一致了<span style="color: #ff0000;">，通过chunk知道是这个张表的哪个块上的记录出现不一致</span>。要是主的<span style="color: #ff0000;">binlog模式是Row</span> 则会报错：</span></p>
+<div class="cnblogs_code">
+<pre>Replica db2 has binlog_format ROW <span style="color: #0000ff;">which</span> could cause pt-table-checksum to break replication.  <br>Please read <span style="color: #800000;">"</span><span style="color: #800000;">Replicas using row-based replication</span><span style="color: #800000;">"</span> <span style="color: #0000ff;">in</span> the LIMITATIONS section of the tool<span style="color: #800000;">'</span><span style="color: #800000;">s documentation.  <br>If you understand the risks, specify --no-check-binlog-format to disable this check.</span></pre>
+</div>
+<p><span style="color: #000000;">从错误信息得出，要是不改binlog模式的话，则</span>在<span style="color: #000000;">执行上面的命令时候要指定：</span><br><span style="color: #800000;">--no-check-binlog-format<span style="color: #000000;">，即：<br></span></span></p>
+<div class="cnblogs_code">
+<pre>pt-table-checksum  --nocheck-replication-filters <span style="color: #ff0000;">--no-check-binlog-format</span>  --replicate=rep_test.checksums --databases=rep_test --tables=test1,test2  h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root,p=<span style="color: #800080;">123456</span>,P=<span style="color: #800080;">3306</span></pre>
+</div>
+<p><span style="color: #ff0000;">注意：</span></p>
+<p><span style="color: #000000;">要是在执行命令的过程遇到找不到从服务器的错误：</span></p>
+<div class="cnblogs_code">
+<pre><strong>Diffs cannot be detected because no slaves were found.</strong>  Please <span style="color: #0000ff;">read</span> the <span style="color: #008080;">--</span><span style="color: #008080;">recursion-method documentation for information.</span></pre>
+</div>
+<p><span style="color: #000000;">上面的提示信息很清楚，因为找不到从，所以执行失败。用参数</span><span style="color: #008080;">--</span><span style="color: #008080;">recursion-method</span> <span style="color: #000000;">可以指定模式</span>解决<span style="color: #000000;">，关于</span><span style="color: #008080;">--</span><span style="color: #008080;">recursion-method</span><span style="color: #000000;">参数的设置有：</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre><span style="color: #000000;">METHOD       USES
+</span><span style="color: #808080;">===========</span>  <span style="color: #808080;">=============================================</span><span style="color: #000000;">
+processlist  SHOW PROCESSLIST
+hosts        SHOW SLAVE HOSTS
+cluster      SHOW STATUS </span><span style="color: #808080;">LIKE</span> <span style="color: #ff0000;">'</span><span style="color: #ff0000;">wsrep\_incoming\_addresses</span><span style="color: #ff0000;">'</span><span style="color: #000000;">
+dsn</span><span style="color: #808080;">=</span>DSN      DSNs <span style="color: #0000ff;">from</span> a <span style="color: #0000ff;">table</span><span style="color: #000000;">
+none         Do </span><span style="color: #808080;">not</span> find slaves</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">默认是通过show processlist 找到host的值或show slave hosts 找到host的值。那上面为什么会找不到从呢？</span></p>
+<p><span style="color: #000000;">个人猜测：测试下来是因为在同一个服务器上开启了2个实例互为主从，通过processlist 得到的 host 主从一样，但是没有，而 show slave hosts，因为从上没有指定所以也取不到需要的信息。解决办法：</span></p>
+<p><span style="color: #000000;">在从的配置文件里加：</span></p>
+<div class="cnblogs_code">
+<pre>report_host <span style="color: #808080;">=</span> <span style="color: #800000; font-weight: bold;">192.168</span>.<span style="color: #800000; font-weight: bold;">200.25   #设置成本地地址</span></pre>
+</div>
+<p><span style="color: #000000;">这样在主上执行 show slave hosts 就有信息了：</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>root<span style="color: #008000;">@localhost</span> : (none) <span style="color: #800000; font-weight: bold;">02</span>:<span style="color: #800000; font-weight: bold;">47</span>:<span style="color: #800000; font-weight: bold;">43</span><span style="color: #808080;">&gt;</span><span style="color: #000000;">show slave hosts;
+</span><span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">---------+----------------+------+----------+------+-------------------+-----------+</span>
+<span style="color: #808080;">|</span> Server_id <span style="color: #808080;">|</span> Host           <span style="color: #808080;">|</span> <span style="color: #ff00ff;">User</span> <span style="color: #808080;">|</span> Password <span style="color: #808080;">|</span> Port <span style="color: #808080;">|</span> Rpl_recovery_rank <span style="color: #808080;">|</span> Master_id <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">---------+----------------+------+----------+------+-------------------+-----------+</span>
+<span style="color: #808080;">|</span>         <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #808080;">|</span> <span style="color: #800000; font-weight: bold;">192.168</span>.<span style="color: #800000; font-weight: bold;">200.25</span> <span style="color: #808080;">|</span>      <span style="color: #808080;">|</span>          <span style="color: #808080;">|</span> <span style="color: #800000; font-weight: bold;">3307</span> <span style="color: #808080;">|</span>                 <span style="color: #800000; font-weight: bold;">0</span> <span style="color: #808080;">|</span>         <span style="color: #800000; font-weight: bold;">1</span> <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">---------+----------------+------+----------+------+-------------------+-----------+</span>
+<span style="color: #800000; font-weight: bold;">1</span> row <span style="color: #808080;">in</span> <span style="color: #0000ff;">set</span> (<span style="color: #800000; font-weight: bold;">0.00</span> sec)</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">最后再执行以上命令（多加</span><span style="color: #008080;">--</span><span style="color: #008080;">recursion-method=hosts</span> <span style="color: #000000;">参数）</span>：</p>
+<div class="cnblogs_code">
+<pre>zhoujy<span style="color: #008000;">@zhoujy</span>:<span style="color: #808080;">~</span>$ pt<span style="color: #808080;">-</span><span style="color: #0000ff;">table</span><span style="color: #808080;">-</span>checksum <strong><span style="color: #008080;">--</span></strong><span style="color: #008080;"><strong>recursion-method=hosts</strong> --no-check-binlog-format --nocheck-replication-filters  --replicate=aaa.checksums --databases=aaa --tables=test h=192.168.200.25,u=root,p=123456,P=3306</span>
+            TS ERRORS  DIFFS     ROWS  CHUNKS SKIPPED    TIME <span style="color: #0000ff;">TABLE</span>
+<span style="color: #800000; font-weight: bold;">10</span><span style="color: #808080;">-</span>24T14:<span style="color: #800000; font-weight: bold;">54</span>:<span style="color: #800000; font-weight: bold;">43</span>      <span style="color: #800000; font-weight: bold;">0</span>      <span style="color: #800000; font-weight: bold;">1</span>        <span style="color: #800000; font-weight: bold;">6</span>       <span style="color: #800000; font-weight: bold;">1</span>       <span style="color: #800000; font-weight: bold;">0</span>   <span style="color: #800000; font-weight: bold;">0.306</span> aaa.test</pre>
+</div>
+<p><span style="color: #ff0000;">通过上面找到了这些不一致的数据表，如何同步数据呢？即如何<strong>修复MySQL主从不一致的数据</strong>，让他们保持一致性呢？利用另外一个工具</span> <a href="http://www.percona.com/doc/percona-toolkit/2.2/pt-table-sync.html">pt-table-sync</a>。<br><span style="color: #000000;"><strong>使用方法：</strong></span></p>
+<div class="cnblogs_code">
+<pre>pt-table-<span style="color: #0000ff;">sync</span> [OPTIONS] DSN [DSN]</pre>
+</div>
+<p><strong><a href="http://www.percona.com/doc/percona-toolkit/2.2/pt-table-sync.html">pt-table-sync</a><span style="color: #000000;">: </span></strong><span style="color: #000000;">高效的同步MySQL表之间的数据，他可以做单向和双向同步的表数据。他可以同步单个表，也可以同步整个库。它不同步表结构、索引、或任何其他模式对象。所以在修复一致性之前需要保证他们表存在。</span></p>
+<p><span style="color: #000000;">接着上面的复制情况，主和从的test1数据不一致，需要修复，要是有中文的则需要加上<strong><span style="color: #ff0000;">：--charset=utf8，防止乱码。</span></strong><br><span style="color: #ff0000;"><strong>执行</strong></span>：</span></p>
+<div class="cnblogs_code">
+<pre>root@zhoujy:~# <strong>pt-table-<span style="color: #0000ff;">sync</span> <span style="color: #ff0000;">--replicate=rep_test.checksums</span> h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root,p=<span style="color: #800080;">123456</span> h=<span style="color: #800080;">192.168</span>.<span style="color: #800080;">200.201</span>,u=root,p=<span style="color: #800080;">123456</span> --charset=utf8 --</strong><span style="color: #000000;"><span style="color: #ff0000;"><strong>print
+</strong></span><span style="background-color: #ff9900;">REPLACE INTO `rep_test`.`test1`(`</span></span><span style="background-color: #ff9900;"><span style="color: #0000ff;">id</span>`, `name`) VALUES (<span style="color: #800000;">'</span><span style="color: #800000;">3</span><span style="color: #800000;">'</span>, <span style="color: #800000;">'</span><span style="color: #800000;">c</span><span style="color: #800000;">'</span>)  </span><br><strong>#先M的IP，再S的IP</strong><br><span style="color: #008000;">/*</span><span style="color: #008000;">percona-toolkit src_db:rep_test src_tbl:test1 src_dsn:h=127.0.0.1,p=...,u=root dst_db:rep_test dst_tbl:test1 dst_dsn:h=192.168.200.201,p=...,u=root lock:1 transaction:0 changing_src:rep_test.checksums replicate:rep_test.checksums bidirectional:0 pid:12285 user:root host:zhoujy</span><span style="color: #008000;">*/</span>;</pre>
+</div>
+<p><span style="color: #ff0000;">参数的意义：</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>--<span style="color: #ff0000;">replicate</span>=  ：指定通过pt-table-<span style="color: #000000;">checksum得到的表，这2个工具差不多都会一直用。
+</span>--<span style="color: #ff0000;">databases</span>=<span style="color: #000000;">  : 指定执行同步的数据库，多个用逗号隔开。
+</span>--<span style="color: #ff0000;">tables</span>=<span style="color: #000000;">     ：指定执行同步的表，多个用逗号隔开。
+</span>--<span style="color: #0000ff;">sync</span>-to-<span style="color: #000000;">master ：指定一个DSN，即从的IP，他会通过show processlist或show slave status 去自动的找主。
+h</span>=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span><span style="color: #000000;">   ：<span style="color: #ff0000;">服务器地址，命令里有2个ip，第一次出现的是M的地址，第2次是Slave的地址</span>。
+u</span>=<span style="color: #000000;">root        ：帐号。
+p</span>=<span style="color: #800080;">123456</span><span style="color: #000000;">      ：密码。
+</span>--<span style="color: #000000;"><span style="color: #ff0000;">print      </span> ：打印，但不执行命令。
+</span>--<span style="color: #ff0000;">execute    </span> ：执行命令。<br>更多的参数请见官网，上面指出来的是常用的，对该场景够用的参数。</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">上面的效果和这个一样：<br></span></p>
+<div class="cnblogs_code">
+<pre>zhoujy@zhoujy:~$ <span style="color: #000000;">pt-table-sync<span style="color: #ff0000;"> <strong>--sync-to-master</strong></span> h=192.168.200.201,u=root,p=123456 --databases=rep_test --tables=test1 --charset=utf8 <strong>--</strong><span style="color: #000000;"><span style="color: #ff0000;"><strong>print</strong></span></span>
+<strong><span style="background-color: #ff9900;">REPLACE INTO `rep_test`.`test1`(`</span></strong></span><strong><span style="background-color: #ff9900;"><span style="color: #0000ff;">id</span>`, `name`) VALUES (<span style="color: #800000;">'</span><span style="color: #800000;">3</span><span style="color: #800000;">'</span>, <span style="color: #800000;">'</span><span style="color: #800000;">c</span><span style="color: #800000;">'</span>)</span> </strong><br><strong><span style="color: #000000;">#用一个IP（SLAVE）就可以了。</span></strong><br><span style="color: #008000;">/*</span><span style="color: #008000;">percona-toolkit src_db:rep_test src_tbl:test1 src_dsn:P=3306,h=192.168.200.25,p=...,u=root dst_db:rep_test dst_tbl:test1 dst_dsn:h=192.168.200.201,p=...,u=root lock:1 transaction:1 changing_src:1 replicate:0 bidirectional:0 pid:20122 user:zhoujy host:zhoujy</span><span style="color: #008000;">*/</span>;</pre>
+</div>
+<p><span style="color: #000000;">好了，命令介绍完了，一起解释下执行的效果：通过（</span><span style="color: #ff0000;">--print</span><span style="color: #000000;">）打印出来了修复数据的sql语句，可以手动的去从行执行，让他们数据保持一致性。那能否直接执行？当然可以，通过(</span><span style="color: #ff0000;"><strong>--</strong></span><span style="color: #000000;"><span style="color: #ff0000;">execute</span>)：</span></p>
+<div class="cnblogs_code">
+<pre>root@zhoujy:~# pt-table-<span style="color: #0000ff;">sync</span> --replicate=rep_test.checksums --databases=rep_test --tables=test2,test1 h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root,p=<span style="color: #800080;">123456</span> h=<span style="color: #800080;">192.168</span>.<span style="color: #800080;">200.201</span>,u=root,p=<span style="color: #800080;">123456</span> <span style="color: #ff0000;"><strong>--</strong></span><span style="color: #000000;"><span style="color: #ff0000;"><strong>execute</strong></span>
+root@zhoujy:</span>~# </pre>
+</div>
+<p><span style="color: #000000;">直接执行完毕了，查看数据表：</span></p>
+<div class="cnblogs_code" onclick="cnblogs_code_show('fe314b20-c3cf-46d6-9948-0055685c884b')"><img id="code_img_closed_fe314b20-c3cf-46d6-9948-0055685c884b" class="code_img_closed" src="http://images.cnblogs.com/OutliningIndicators/ContractedBlock.gif" alt=""><img id="code_img_opened_fe314b20-c3cf-46d6-9948-0055685c884b" class="code_img_opened" style="display: none;" onclick="cnblogs_code_hide('fe314b20-c3cf-46d6-9948-0055685c884b',event)" src="http://images.cnblogs.com/OutliningIndicators/ExpandedBlockStart.gif" alt=""><span class="cnblogs_code_collapse">View Code </span>
+<div id="cnblogs_code_open_fe314b20-c3cf-46d6-9948-0055685c884b" class="cnblogs_code_hide">
+<pre><span style="color: #000000;">主：
+root</span><span style="color: #008000;">@localhost</span> : rep_test <span style="color: #800000; font-weight: bold;">08</span>:<span style="color: #800000; font-weight: bold;">58</span>:<span style="color: #800000; font-weight: bold;">41</span><span style="color: #808080;">&gt;</span><span style="color: #0000ff;">select</span> <span style="color: #808080;">*</span> <span style="color: #0000ff;">from</span><span style="color: #000000;"> test1;
+</span><span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span> id <span style="color: #808080;">|</span> name <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">1</span> <span style="color: #808080;">|</span> a    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #808080;">|</span> b    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">3</span> <span style="color: #808080;">|</span> c    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">4</span> <span style="color: #808080;">|</span> d    <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #800000; font-weight: bold;">4</span> rows <span style="color: #808080;">in</span> <span style="color: #0000ff;">set</span> (<span style="color: #800000; font-weight: bold;">0.00</span><span style="color: #000000;"> sec)
+
+从:
+root</span><span style="color: #008000;">@192</span>.<span style="color: #800000; font-weight: bold;">168.200</span>.<span style="color: #800000; font-weight: bold;">201</span> : rep_test <span style="color: #800000; font-weight: bold;">08</span>:<span style="color: #800000; font-weight: bold;">58</span>:<span style="color: #800000; font-weight: bold;">56</span><span style="color: #808080;">&gt;</span><span style="color: #0000ff;">select</span> <span style="color: #808080;">*</span> <span style="color: #0000ff;">from</span><span style="color: #000000;"> test1;
+</span><span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span> id <span style="color: #808080;">|</span> name <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">1</span> <span style="color: #808080;">|</span> a    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #808080;">|</span> b    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">3</span> <span style="color: #808080;">|</span> c    <span style="color: #808080;">|</span>
+<span style="color: #808080;">|</span>  <span style="color: #800000; font-weight: bold;">4</span> <span style="color: #808080;">|</span> d    <span style="color: #808080;">|</span>
+<span style="color: #808080;">+</span><span style="color: #008080;">--</span><span style="color: #008080;">--+------+</span>
+<span style="color: #800000; font-weight: bold;">4</span> rows <span style="color: #808080;">in</span> <span style="color: #0000ff;">set</span> (<span style="color: #800000; font-weight: bold;">0.00</span> sec)</pre>
+</div>
+</div>
+<p><span style="color: #000000;">OK，数据已经保持一致了。不过建议还是用--print 打印出来的好，这样就可以知道那些数据有问题，可以人为的干预下。不然直接执行了，出现问题之后更不好处理。总之还是在处理之前做好数据的备份工作。</span></p>
+<p><span style="color: #ff0000;"><strong>注意：</strong></span><span style="color: #ff0000;">要是表中没有唯一索引或则主键则会报错：</span><span style="color: #000000;"><br></span></p>
+<div class="cnblogs_code">
+<pre>Can<span style="color: #800000;">'</span><span style="color: #800000;">t make changes on the master because no unique index exists at /usr/local/bin/pt-table-sync line 10591.</span></pre>
+</div>
+<p><span style="color: #000000;"><strong>另外补充：<br></strong>要是从库有的数据，而主库没有，那这个数据怎么处理？在原先的基础上，在从上添加一条5记录。</span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>root<span style="color: #008000;">@zhoujy</span>:<span style="color: #808080;">~</span># pt<span style="color: #808080;">-</span><span style="color: #0000ff;">table</span><span style="color: #808080;">-</span>sync <span style="color: #008080;">--</span><span style="color: #008080;">replicate=rep_test.checksums --databases=rep_test,test --tables=test2,test1 h=127.0.0.1,u=root,p=123456 h=192.168.200.201,u=root,p=123456 --print</span>
+<span style="background-color: #ff9900;"><span style="color: #0000ff;">DELETE</span> <span style="color: #0000ff;">FROM</span> `rep_test`.`test1` <span style="color: #0000ff;">WHERE</span> `id`<span style="color: #808080;">=</span><span style="color: #ff0000;">'</span><span style="color: #ff0000;">5</span><span style="color: #ff0000;">'</span> LIMIT <span style="color: #800000; font-weight: bold;">1</span> </span><br><br><span style="color: #008080;">/*</span><span style="color: #008080;">percona-toolkit src_db:rep_test src_tbl:test1 src_dsn:h=127.0.0.1,p=...,u=root dst_db:rep_test dst_tbl:test1 dst_dsn:h=192.168.200.201,p=...,u=root lock:1 transaction:0 changing_src:rep_test.checksums replicate:rep_test.checksums bidirectional:0 pid:12343 user:root host:zhoujy</span><span style="color: #008080;">*/</span><span style="color: #000000;">;
+<br></span><span style="background-color: #ff9900;"><span style="color: #ff00ff;">REPLACE</span> <span style="color: #0000ff;">INTO</span> `rep_test`.`test1`(`id`, `name`) <span style="color: #0000ff;">VALUES</span> (<span style="color: #ff0000;">'</span><span style="color: #ff0000;">3</span><span style="color: #ff0000;">'</span>, <span style="color: #ff0000;">'</span><span style="color: #ff0000;">c</span><span style="color: #ff0000;">'</span>)</span> <br><br><span style="color: #008080;">/*</span><span style="color: #008080;">percona-toolkit src_db:rep_test src_tbl:test1 src_dsn:h=127.0.0.1,p=...,u=root dst_db:rep_test dst_tbl:test1 dst_dsn:h=192.168.200.201,p=...,u=root lock:1 transaction:0 changing_src:rep_test.checksums replicate:rep_test.checksums bidirectional:0 pid:12343 user:root host:zhoujy</span><span style="color: #008080;">*/</span>;</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><span style="color: #000000;">从上面可以看到，直接把从库的有的数据给删除了，没有的数据进行插入。这样2边又保持了 一致性。</span></p>
+<p><span style="color: #000000;">要是在shell窗口不想显示的输入密码则可以添加：</span><strong><span style="color: #ff0000;">--ask-pass</span> </strong><span style="color: #000000;">参数，如：<br></span></p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre>zhoujy@zhoujy:~$ pt-table-checksum  --nocheck-replication-filters --no-check-binlog-format  --replicate=rep_test.checksums <strong><em><span style="color: #ff0000;">--ask-pass</span></em></strong> --databases=rep_test --tables=test1,test2  h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root,P=<span style="color: #800080;">3306</span><span style="color: #000000;">
+Enter MySQL password: 
+            TS ERRORS  DIFFS     ROWS  CHUNKS SKIPPED    TIME TABLE
+</span><span style="color: #800080;">05</span>-09T13:<span style="color: #800080;">57</span>:<span style="color: #800080;">04</span>      <span style="color: #800080;">0</span>      <span style="color: #800080;">1</span>        <span style="color: #800080;">4</span>       <span style="color: #800080;">1</span>       <span style="color: #800080;">0</span>   <span style="color: #800080;">0.015</span><span style="color: #000000;"> rep_test.test1
+</span><span style="color: #800080;">05</span>-09T13:<span style="color: #800080;">57</span>:<span style="color: #800080;">04</span>      <span style="color: #800080;">0</span>      <span style="color: #800080;">1</span>        <span style="color: #800080;">1</span>       <span style="color: #800080;">1</span>       <span style="color: #800080;">0</span>   <span style="color: #800080;">0.010</span><span style="color: #000000;"> rep_test.test2
+
+zhoujy@zhoujy:</span>~$ pt-table-<span style="color: #0000ff;">sync</span> --replicate=rep_test.checksums  <em><strong><span style="color: #ff0000;">--ask-pass</span></strong></em> h=<span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span>,u=root h=<span style="color: #800080;">192.168</span>.<span style="color: #800080;">200.201</span>,u=root --<span style="color: #000000;">print
+Enter password </span><span style="color: #0000ff;">for</span> <span style="color: #800080;">127.0</span>.<span style="color: #800080;">0.1</span><span style="color: #000000;">: 
+Enter password </span><span style="color: #0000ff;">for</span> <span style="color: #800080;">192.168</span>.<span style="color: #800080;">200.201</span><span style="color: #000000;">: 
+DELETE FROM `rep_test`.`test1` WHERE `</span><span style="color: #0000ff;">id</span>`=<span style="color: #800000;">'</span><span style="color: #800000;">5</span><span style="color: #800000;">'</span> LIMIT <span style="color: #800080;">1</span><span style="color: #000000;">;
+REPLACE INTO `rep_test`.`test1`(`</span><span style="color: #0000ff;">id</span>`, `name`) VALUES (<span style="color: #800000;">'</span><span style="color: #800000;">4</span><span style="color: #800000;">'</span>, <span style="color: #800000;">'</span><span style="color: #800000;">d</span><span style="color: #800000;">'</span>) ;</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p>&nbsp;<span style="color: #000000;"><span style="color: #ff0000;"><strong>总结：</strong></span><br>该工具检查的表，需要检查连接的帐号需要有很高的权限，在一般权限行需要加</span>SELECT, PROCESS, SUPER, REPLICATION SLAVE<span style="color: #000000;">等权限，测试方便我直接给了ALL的权限</span><span style="color: #000000;">，pt-table-checksum 和 pt-table-sync 一起互补使用，检查一定是在同步操作之前</span><span style="color: #000000;">，更多的信息请见</span> <span style="color: #000000;"><a href="http://www.percona.com/doc/percona-toolkit/2.2/index.html">这里 </a></span>、<span style="color: #000000;"><a href="http://nettedfish.sinaapp.com/blog/2013/06/04/check-replication-consistency-by-pt-table-checksum/">这里</a>、<a href="http://nettedfish.sinaapp.com/blog/2013/06/05/synchronizes-data-efficiently-by-pt-table-sync/">这里</a><br><br><br></span></p>
+<p>&nbsp;</p></div>
+

@@ -1,0 +1,105 @@
+---
+layout: default
+title: pt-query-digest查询日志分析工具
+description: pt-query-digest是用于分析mysql慢查询的一个工具，它可以分析binlog、General log、slowlog
+categories: [mysql]
+tags: [percona]
+---
+
+<div id="article_content" class="article_content">
+
+<p align="center" style="text-align:left"><strong><span style="background-color:rgb(240,240,240)">1.&nbsp;</span><span style="background-color:rgb(240,240,240); color:rgb(68,68,68)">工具简介</span></strong></p>
+<pre style="background:white"><span style="color:#333333">pt-query-digest</span><span style="color:#444444">是用于分析</span><span style="color:#444444">mysql</span><span style="color:#444444">慢查询的一个工具，它可以分析</span><span style="color:#444444">binlog</span><span style="color:#444444">、</span><span style="color:#444444">General log</span><span style="color:#444444">、</span><span style="color:#444444">slowlog</span><span style="color:#444444">，也可以通过</span><span style="color:#333333">SHOWPROCESSLIST</span><span style="color:#333333">或者通过tcpdump</span>抓取的MySQL协议数据来进行分析<span style="color:#444444">。可以把分析结果输出到文件中，分析过程是先对查询语句的条件进行参数化，然后对参数化以后的查询进行分组统计，统计出各查询的执行时间、次数、占比等，可以借助分析结果找出问题进行优化。</span><span style="color:#444444">
+pt-query-digest</span><span style="color:#444444">是一个</span><span style="color:#444444">perl</span><span style="color:#444444">脚本，只需下载并赋权即可执行。</span><span style="color:#444444">
+</span>[root@test1 ]# wget percona.com/get/pt-query-digest 
+[root@test1 ]# chmod u+x pt-query-digest</pre>
+<pre style="background:white">&nbsp;</pre>
+<pre style="background:white"><strong><span style="color:rgb(68,68,68)">2.</span><span style="color:rgb(68,68,68)">语法及重要选项</span></strong>
+</pre>
+<div style="background:#F0E6D9">
+<p align="left"><span style="color:#333333">pt-query-digest [OPTIONS] [FILES] [DSN]</span></p>
+</div>
+<p><strong><span style="color:#444444">--create-review-table&nbsp; </span></strong><span style="color:#444444">当使用</span><span style="color:#444444">--review</span><span style="color:#444444">参数把分析结果输出到表中时，如果没有表就自动创建。</span><span style="color:#444444"><br>
+<strong>--create-history-table&nbsp; </strong></span><span style="color:#444444">当使用</span><span style="color:#444444">--history</span><span style="color:#444444">参数把分析结果输出到表中时，如果没有表就自动创建。</span><strong><span style="color:rgb(51,51,51)"><br>
+</span><span style="color:#444444">--filter&nbsp; </span></strong><span style="color:rgb(51,51,51)">对输入的慢查询按指定的字符串进行匹配过滤后再进行分析</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--limit</span></strong><span style="color:rgb(51,51,51)">限制输出结果百分比或数量，默认值是</span><span style="color:rgb(51,51,51)">20,</span><span style="color:rgb(51,51,51)">即将最慢的</span><span style="color:rgb(51,51,51)">20</span><span style="color:rgb(51,51,51)">条语句输出，如果是</span><span style="color:rgb(51,51,51)">50%</span><span style="color:rgb(51,51,51)">则按总响应时间占比从大到小排序，输出到总和达到</span><span style="color:rgb(51,51,51)">50%</span><span style="color:rgb(51,51,51)">位置截止。</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--host&nbsp; </span><span style="color:rgb(51,51,51)">mysql</span><span style="color:rgb(51,51,51)">服务器地址</span><span style="color:rgb(51,51,51)"><br>
+</span><span style="color:#444444">--user&nbsp; </span></strong><span style="color:rgb(51,51,51)">mysql</span><span style="color:rgb(51,51,51)">用户名</span><strong><span style="color:rgb(51,51,51)"><br>
+</span><span style="color:#444444">--password&nbsp; </span></strong><span style="color:rgb(51,51,51)">mysql</span><span style="color:rgb(51,51,51)">用户密码</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--history</span></strong><span style="color:rgb(51,51,51)">&nbsp;</span><span style="color:rgb(51,51,51)">将分析结果保存到表中，分析结果比较详细，下次再使用</span><span style="color:rgb(51,51,51)">--history</span><span style="color:rgb(51,51,51)">时，如果存在相同的语句，且查询所在的时间区间和历史表中的不同，则会记录到数据表中，可以通过查询同一</span><span style="color:rgb(51,51,51)">CHECKSUM</span><span style="color:rgb(51,51,51)">来比较某类型查询的历史变化。</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--review</span></strong><span style="color:rgb(51,51,51)">&nbsp;</span><span style="color:rgb(51,51,51)">将分析结果保存到表中，这个分析只是对查询条件进行参数化，一个类型的查询一条记录，比较简单。当下次使用</span><span style="color:rgb(51,51,51)">--review</span><span style="color:rgb(51,51,51)">时，如果存在相同的语句分析，就不会记录到数据表中。</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--output</span></strong><span style="color:rgb(51,51,51)">&nbsp;</span><span style="color:rgb(51,51,51)">分析结果输出类型，值可以是</span><span style="color:rgb(51,51,51)">report(</span><span style="color:rgb(51,51,51)">标准分析报告</span><span style="color:rgb(51,51,51)">)</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">slowlog(Mysql
+ slow log)</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">json</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">json-anon</span><span style="color:rgb(51,51,51)">，一般使用</span><span style="color:rgb(51,51,51)">report</span><span style="color:rgb(51,51,51)">，以便于阅读。</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--since</span></strong><span style="color:rgb(51,51,51)">&nbsp;</span><span style="color:rgb(51,51,51)">从什么时间开始分析，值为字符串，可以是指定的某个</span><span style="color:rgb(51,51,51)">”yyyy-mm-dd [hh:mm:ss]”</span><span style="color:rgb(51,51,51)">格式的时间点，也可以是简单的一个时间值：</span><span style="color:rgb(51,51,51)">s(</span><span style="color:rgb(51,51,51)">秒</span><span style="color:rgb(51,51,51)">)</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">h(</span><span style="color:rgb(51,51,51)">小时</span><span style="color:rgb(51,51,51)">)</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">m(</span><span style="color:rgb(51,51,51)">分钟</span><span style="color:rgb(51,51,51)">)</span><span style="color:rgb(51,51,51)">、</span><span style="color:rgb(51,51,51)">d(</span><span style="color:rgb(51,51,51)">天</span><span style="color:rgb(51,51,51)">)</span><span style="color:rgb(51,51,51)">，如</span><span style="color:rgb(51,51,51)">12h</span><span style="color:rgb(51,51,51)">就表示从</span><span style="color:rgb(51,51,51)">12</span><span style="color:rgb(51,51,51)">小时前开始统计。</span><span style="color:rgb(51,51,51)"><br>
+</span><strong><span style="color:#444444">--until</span></strong><span style="color:rgb(102,102,102)">&nbsp;</span><span style="color:rgb(51,51,51)">截止时间，配合</span><span style="color:rgb(51,51,51)">—since</span><span style="color:rgb(51,51,51)">可以分析一段时间内的慢查询。</span></p>
+<pre style="background:white"><strong><span style="color:#444444">3.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </span><span style="color:#444444">标准分析报告解释</span><span style="color:#444444">
+</span><span style="color:#444444">第一部分：总体统计结果</span><span style="color:#444444">,</span><span style="color:#444444">如下图</span></strong></pre>
+<pre style="background:white"><strong><span style="color:#444444"><img src="" alt=""><img src="http://img.blog.csdn.net/20140418150256718?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvc2V0ZW9y/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/Center" alt="">
+</span></strong><span style="color:#444444">Overall: </span><span style="color:#444444">总共有多少条查询，上例为总共</span><span style="color:#444444">266</span><span style="color:#444444">个查询。</span><span style="color:#444444">
+Time range: </span><span style="color:#444444">查询执行的时间范围。</span><span style="color:#444444">
+unique: </span><span style="color:#444444">唯一查询数量，即对查询条件进行参数化以后，总共有多少个不同的查询，该例为</span><span style="color:#444444">55</span><span style="color:#444444">。</span><span style="color:#444444">
+total: </span><span style="color:#444444">总计</span><span style="color:#444444">&nbsp;&nbsp; min:</span><span style="color:#444444">最小</span><span style="color:#444444">&nbsp;&nbsp; max: </span><span style="color:#444444">最大</span><span style="color:#444444">&nbsp; avg:</span><span style="color:#444444">平均</span><span style="color:#444444">
+95%: </span><span style="color:#444444">把所有值从小到大排列，位置位于</span><span style="color:#444444">95%</span><span style="color:#444444">的那个数，这个数一般最具有参考价值。</span><span style="color:#444444">
+median: </span><span style="color:#444444">中位数，把所有值从小到大排列，位置位于中间那个数。</span><strong><span style="color:#444444">
+</span></strong><span style="color:#444444">
+</span><strong><span style="color:#444444">第二部分：查询分组统计结果</span><span style="color:#444444">,</span><span style="color:#444444">如下图</span></strong></pre>
+<pre style="background:white"><span style="color:#444444"><img src="" alt=""><img src="http://img.blog.csdn.net/20140418150301531?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvc2V0ZW9y/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/Center" alt="">
+</span><span style="color:#444444">由上图可见，这部分对查询进行参数化并分组，然后对各类查询的执行情况进行分析，结果按总执行时长，从大到小排序。</span><span style="color:#444444">
+Response: </span><span style="color:#444444">总的响应时间。</span><span style="color:#444444">
+time: </span><span style="color:#444444">该查询在本次分析中总的时间占比。</span><span style="color:#444444">
+calls: </span><span style="color:#444444">执行次数，即本次分析总共有多少条这种类型的查询语句。</span><span style="color:#444444">
+R/Call: </span><span style="color:#444444">平均每次执行的响应时间。</span><span style="color:#444444">
+Item : </span><span style="color:#444444">查询对象</span><span style="color:#444444">
+
+</span><span style="color:#444444"><strong>第三部分：每一种查询的详细统计结果，如下图：</strong></span></pre>
+<pre style="background:white"><span style="color:#444444"><img src="" alt=""><img src="http://img.blog.csdn.net/20140418150306093?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvc2V0ZW9y/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/Center" alt="">
+</span><span style="color:#444444">由</span><span style="color:#444444">上图可见，</span><span style="color:#444444">12</span><span style="color:#444444">号查询的详细统计结果，最上面的表格列出了执行次数、最大、最小、平均、</span><span style="color:#444444">95%</span><span style="color:#444444">等各项目的统计。</span><span style="color:#444444">
+Databases: </span><span style="color:#444444">库名</span><span style="color:#444444">
+Users: </span><span style="color:#444444">各个用户执行的次数（占比）</span><span style="color:#444444">
+Query_time distribution : </span><span style="color:#444444">查询时间分布</span><span style="color:#444444">, </span><span style="color:#444444">长短体现区间占比，本例中</span><span style="color:#444444">1s-10s</span><span style="color:#444444">之间查询数量是</span><span style="color:#444444">10s</span><span style="color:#444444">以上的两倍。</span><span style="color:#444444">
+Tables: </span><span style="color:#444444">查询中涉及到的表</span><span style="color:#444444">
+Explain: </span><span style="color:#444444">示例</span></pre>
+<pre style="background:white"><span style="color:#444444">&nbsp;</span></pre>
+<pre style="background:white"><strong><span style="color:#444444">4.</span><span style="color:#444444">用法示例</span><span style="color:#444444">
+(1)</span><span style="color:#444444">直接分析慢查询文件</span><span style="color:#444444">:</span></strong><span style="color:#444444">
+pt-query-digest &nbsp;slow.log &gt; slow_report.log
+
+</span></pre>
+<pre style="background:white"><span style="font-family:Arial,Helvetica,sans-serif; color:rgb(68,68,68)"><strong>(2)</strong></span><span style="font-family:Arial,Helvetica,sans-serif; color:rgb(68,68,68)"><strong>分析最近</strong></span><span style="font-family:Arial,Helvetica,sans-serif; color:rgb(68,68,68)"><strong>12</strong></span><span style="font-family:Arial,Helvetica,sans-serif; color:rgb(68,68,68)"><strong>小时内的查询：</strong></span></pre>
+<p><span style="color:#444444">pt-query-digest&nbsp; --since=12h &nbsp;slow.log &gt; slow_report2.log<br>
+<br>
+</span></p>
+<p><span style="color:rgb(68,68,68)"><strong>(3)</strong></span><span style="color:rgb(68,68,68)"><strong>分析指定时间范围内的查询：</strong></span></p>
+<p><span style="color:#444444">pt-query-digest slow.log --since '2014-04-17 09:30:00' --until '2014-04-17 10:00:00'&gt; &gt; slow_report3.log<br>
+<br>
+</span></p>
+<p><strong><span style="color:#444444">(4)</span><span style="color:#444444">分析指含有</span><span style="color:#444444">select</span><span style="color:#444444">语句的慢查询</span></strong><span style="color:#666666"><br>
+</span><span style="color:#444444">pt-query-digest--filter '$event-&gt;{fingerprint} =~ m/^select/i' slow.log&gt; slow_report4.log<br>
+</span><span style="color:#666666"><br>
+</span><strong>(5) 针对某个用户的慢查询</strong><span style="color:#666666"><br>
+</span><span style="color:#444444">pt-query-digest--filter '($event-&gt;{user} || "") =~ m/^root/i' slow.log&gt; slow_report5.log<br>
+</span><span style="color:#666666"><br>
+</span><strong>(6) 查询所有所有的全表扫描或full join的慢查询</strong><span style="color:#666666"><br>
+</span><span style="color:#444444">pt-query-digest--filter '(($event-&gt;{Full_scan} || "") eq "yes") ||(($event-&gt;{Full_join} || "") eq "yes")' slow.log&gt; slow_report6.log<br>
+</span><span style="color:rgb(68,68,68)"><strong><br>
+(7)</strong></span><span style="color:rgb(68,68,68)"><strong>把查询保存到</strong></span><span style="color:rgb(68,68,68)"><strong>query_review</strong></span><span style="color:rgb(68,68,68)"><strong>表<br>
+</strong></span><span style="color:rgb(68,68,68)">pt-query-digest &nbsp;--user=root –password=abc123 --review &nbsp;h=localhost,D=test,t=query_review--create-review-table&nbsp; slow.log<br>
+<br>
+</span></p>
+<p><strong><span style="color:#444444">(8)</span><span style="color:#444444">把查询保存到</span><span style="color:#444444">query_history</span><span style="color:#444444">表</span><span style="color:#444444"><br>
+</span></strong><span style="color:#444444">pt-query-digest &nbsp;--user=root –password=abc123 --review &nbsp;h=localhost,D=test,t=query_ history--create-review-table&nbsp; slow.log_20140401<strong><br>
+</strong>pt-query-digest &nbsp;--user=root –password=abc123--review &nbsp;h=localhost,D=test,t=query_history--create-review-table&nbsp; slow.log_20140402<br>
+</span><span style="color:rgb(68,68,68)"><br>
+<strong>(9)</strong></span><span style="color:rgb(68,68,68)"><strong>通过</strong></span><span style="color:rgb(68,68,68)"><strong>tcpdump</strong></span><span style="color:rgb(68,68,68)"><strong>抓取</strong></span><span style="color:rgb(68,68,68)"><strong>mysql</strong></span><span style="color:rgb(68,68,68)"><strong>的</strong></span><span style="color:rgb(68,68,68)"><strong>tcp</strong></span><span style="color:rgb(68,68,68)"><strong>协议数据，然后再分析<br>
+</strong></span><span style="color:rgb(68,68,68)">tcpdump -s 65535 -x -nn -q -tttt -i any -c 1000 port 3306 &gt; mysql.tcp.txt<br>
+</span><span style="color:rgb(68,68,68)">pt-query-digest --type tcpdump mysql.tcp.txt&gt; slow_report9.log<br>
+</span><span style="color:rgb(68,68,68)"><br>
+<strong>(10)</strong></span><span style="color:rgb(68,68,68)"><strong>分析</strong></span><span style="color:rgb(68,68,68)"><strong>binlog<br>
+</strong></span><span style="color:rgb(68,68,68)">mysqlbinlog mysql-bin.000093 &gt; mysql-bin000093.sql<br>
+</span><span style="color:rgb(68,68,68)">pt-query-digest &nbsp;--type=binlog&nbsp; mysql-bin000093.sql &gt; slow_report10.log<br>
+</span><span style="color:rgb(68,68,68)"><br>
+<strong>(11)</strong></span><span style="color:rgb(68,68,68)"><strong>分析</strong></span><span style="color:rgb(68,68,68)"><strong>general log<br>
+</strong></span><span style="color:rgb(68,68,68)">pt-query-digest &nbsp;--type=genlog&nbsp; localhost.log &gt; slow_report11.log</span></p>
+<p><span style="color:rgb(68,68,68)">&nbsp;</span></p>
+<p><span style="color:#444444">官方文档：</span><span style="color:#444444">http://www.percona.com/doc/percona-toolkit/2.2/pt-query-digest.html</span></p>
+</div>

@@ -1,0 +1,106 @@
+---
+layout: default
+title: 利用pt-table-checksum做主从一致性校验 
+description: 利用pt-table-checksum做主从一致性校验 :参考http://www.percona.com/doc/percona-toolkit/2.1/pt-table-checksum.html
+categories: [mysql]
+tags: [percona]
+---
+
+<div class="Blog_wz1" style="word-wrap: break-word;">
+			一. 参考<br><a href="http://www.percona.com/doc/percona-toolkit/2.1/pt-table-checksum.html" target="_blank">http://www.percona.com/doc/percona-toolkit/2.1/pt-table-checksum.html</a><br><br><div>二. 前言<br>pt-table-checksum是一个在线验证主从数据一致性的工具,主要用于以下场景:<br>1. 数据迁移前后,进行数据一致性检查<br>2. 当主从复制出现问题,待修复完成后,对主从数据进行一致性检查<br>3. 把从库当成主库,进行数据更新,产生了"脏数据"<br>4. 定期校验<br><br><div>三. 环境<br>master<br>|----slave1<br>|----slave2<br><br></div><div>四. 临时校验(端口3306)<br><ul><li>准备工作:</li></ul><ol>   <li>创建用户checksums,192.168.250.249为当前写库&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">GRANT</span> <span style="color:#0000FF;">SELECT</span><span style="color:#0000CC;">,</span> PROCESS<span style="color:#0000CC;">,</span> SUPER<span style="color:#0000CC;">,</span> REPLICATION SLAVE <span style="color:#0000FF;">ON</span> <span style="color:#0000CC;">*</span><span style="color:#0000CC;">.</span><span style="color:#0000CC;">*</span> <span style="color:#0000FF;">TO</span> <span style="color:#FF00FF;">'checksums'</span><span style="color:#0000CC;">@</span><span style="color:#FF00FF;">'192.168.250.249'</span> <span style="color:#0000FF;">IDENTIFIED</span> <span style="color:#0000FF;">BY</span> <span style="color:#FF00FF;">'xxxx'</span><span style="color:#0000CC;">;</span></li></ol></div><br><table border="1" cellspacing="1" cellpadding="1" width="300"><tbody><tr><td valign="top" width="200">select</td><td valign="top" width="725">查看所有库的表,原理可加 explain选项查看</td></tr><tr><td valign="top" width="200">process</td><td valign="top" width="725">show processlist</td></tr><tr><td valign="top" width="200">super</td><td valign="top" width="725">set binlog_format='statement'</td></tr><tr><td valign="top" width="200">replication slave</td><td valign="top" width="725">show slave hosts</td></tr></tbody></table>
+
+    <p>连接范围:
+允许master连接</p>
+  </li>
+
+  <li>参数解释 
+    <table border="1" cellspacing="1" cellpadding="1" width="300">
+      <tbody><tr>
+        <td>DSN </td>
+        <td>h='192.168.250.249',u='checksums',p='xxxx',P=3306</td>
+      </tr>
+      <tr>
+        <td><p>-d </p></td>
+        <td>指定校验的库,多个库用逗号(,)分隔</td>
+      </tr>
+      <tr>
+        <td>--nocheck-replication-filters </td>
+        <td><p>忽略replication-do-db规则</p></td>
+      </tr>
+      <tr>
+        <td>--replicate=test.checksums </td>
+        <td><p>在test库下创建checksums表,并将数据写入</p></td>
+      </tr>
+      <tr>
+        <td><p>--recursion-method=none </p></td>
+        <td>指定复制检查的方式,默认情况下使用SHOW PROCESSLIST,如果非标准的3306端口,就使用SHOW SLAVE HOSTS的方式,推荐使用dsn方式,手动指定</td>
+      </tr>
+    </tbody></table>
+
+METHOD       <span class="nv">USES</span>
+<span class="o">===========</span>  <span class="o">==================</span>
+processlist  SHOW PROCESSLIST
+hosts        SHOW SLAVE HOSTS
+<span class="nv">dsn</span><span class="o">=</span>DSN      DSNs from a table
+none         Do not find slaves
+
+DSN格式:dsn=h=host,D=pt,t=dsns</li></ol><ul><li>使用举例:</li></ul><ol>
+  <li>登录主库,增加授权<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">GRANT</span> <span style="color:#0000FF;">SELECT</span><span style="color:#0000CC;">,</span> PROCESS<span style="color:#0000CC;">,</span> SUPER<span style="color:#0000CC;">,</span> REPLICATION SLAVE <span style="color:#0000FF;">ON</span> <span style="color:#0000CC;">*</span><span style="color:#0000CC;">.</span><span style="color:#0000CC;">*</span> <span style="color:#0000FF;">TO</span> <span style="color:#FF00FF;">'checksums'</span><span style="color:#0000CC;">@</span><span style="color:#FF00FF;">'192.168.250.249'</span> <span style="color:#0000FF;">IDENTIFIED</span> <span style="color:#0000FF;">BY</span> <span style="color:#FF00FF;">'xxxx'</span><span style="color:#0000CC;">;</span></li></ol></div><br></li>
+
+  <li>登录主库,执行pt-table-checksums脚本 </li>
+
+  <li>只检查mysql库&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li>pt-table-checksum h='192.168.250.249',u='checksums',p='xxxx',P=3306 -d mysql --nocheck-replication-filters --replicate=test.checksums</li></ol></div><br></li>
+
+  <li>只检查mysql库,但是过滤mysql.user表&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li>pt-table-checksum h='192.168.250.249',u='checksums',p='xxxx',P=3306 -d mysql --ignore-tables=mysql.user --nocheck-replication-filters --replicate=test.checksums</li></ol></div><br></li>
+
+  <li>手动在从库上查询的sql
+    <br>--chunk-size 指定块的大小,默认是1000条.&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">SELECT</span> db<span style="color:#0000CC;">,</span> tbl<span style="color:#0000CC;">,</span> <span style="color:#FF0000;">SUM</span><span style="color:#0000CC;">(</span>this_cnt<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">AS</span> total_rows<span style="color:#0000CC;">,</span> <span style="color:#FF0000;">COUNT</span><span style="color:#0000CC;">(</span><span style="color:#0000CC;">*</span><span style="color:#0000CC;">)</span> <span style="color:#0000FF;">AS</span> chunks <span style="color:#0000FF;">FROM</span> test<span style="color:#0000CC;">.</span>checksums <span style="color:#0000FF;">WHERE</span> <span style="color:#0000CC;">(</span> master_cnt <span style="color:#0000CC;">&lt;</span><span style="color:#0000CC;">&gt;</span> this_cnt <span style="color:#0000FF;">OR</span> master_crc <span style="color:#0000CC;">&lt;</span><span style="color:#0000CC;">&gt;</span> this_crc <span style="color:#0000FF;">OR</span> ISNULL<span style="color:#0000CC;">(</span>master_crc<span style="color:#0000CC;">)</span> <span style="color:#0000CC;">&lt;</span><span style="color:#0000CC;">&gt;</span> ISNULL<span style="color:#0000CC;">(</span>this_crc<span style="color:#0000CC;">)</span><span style="color:#0000CC;">)</span> <span style="color:#0000FF;">GROUP</span> <span style="color:#0000FF;">BY</span> db<span style="color:#0000CC;">,</span> tbl<span style="color:#0000CC;">;</span></li></ol></div></li></ol><div><br></div>
+五. 利用脚本做定期任务.
+<br><ul><li>准备工作</li></ul>
+<ol>
+  <li>建库<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">CREATE</span> <span style="color:#0000FF;">DATABASE</span> pt CHARACTER <span style="color:#0000FF;">SET</span> utf8<span style="color:#0000CC;">;</span></li></ol></div><br></li>
+
+  <li>授权&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">GRANT</span> <span style="color:#0000FF;">SELECT</span><span style="color:#0000CC;">,</span> PROCESS<span style="color:#0000CC;">,</span> SUPER<span style="color:#0000CC;">,</span> REPLICATION SLAVE <span style="color:#0000FF;">ON</span> <span style="color:#0000CC;">*</span><span style="color:#0000CC;">.</span><span style="color:#0000CC;">*</span> <span style="color:#0000FF;">TO</span> <span style="color:#FF00FF;">'checksums'</span><span style="color:#0000CC;">@</span><span style="color:#FF00FF;">'192.168.250.249'</span> <span style="color:#0000FF;">IDENTIFIED</span> <span style="color:#0000FF;">BY</span> <span style="color:#FF00FF;">'xxxx'</span><span style="color:#0000CC;">;</span> <span style="color:#0000FF;">GRANT</span> <span style="color:#0000FF;">ALL</span> <span style="color:#0000FF;">ON</span> pt<span style="color:#0000CC;">.</span><span style="color:#0000CC;">*</span> <span style="color:#0000FF;">TO</span> <span style="color:#FF00FF;">'checksums'</span><span style="color:#0000CC;">@</span><span style="color:#FF00FF;">'192.168.250.249'</span> <span style="color:#0000FF;">IDENTIFIED</span> <span style="color:#0000FF;">BY</span> <span style="color:#FF00FF;">'xxxx'</span><span style="color:#0000CC;">;</span></li></ol></div><br></li>
+
+  <li>在pt库中建表,并插入从库的信息.&nbsp;<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li><span style="color:#0000FF;">CREATE</span> <span style="color:#0000FF;">TABLE</span> `dsns` <span style="color:#0000CC;">(</span> `id` int<span style="color:#0000CC;">(</span>11<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">NOT</span> <span style="color:#0000FF;">NULL</span> AUTO_INCREMENT<span style="color:#0000CC;">,</span> `parent_id` int<span style="color:#0000CC;">(</span>11<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">DEFAULT</span> <span style="color:#0000FF;">NULL</span><span style="color:#0000CC;">,</span> `dsn` <span style="color:#0000FF;">varchar</span><span style="color:#0000CC;">(</span>255<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">NOT</span> <span style="color:#0000FF;">NULL</span><span style="color:#0000CC;">,</span> <span style="color:#0000FF;">PRIMARY</span> <span style="color:#0000FF;">KEY</span> <span style="color:#0000CC;">(</span><span style="color:#0000CC;">`</span>id`<span style="color:#0000CC;">)</span> <span style="color:#0000CC;">)</span><span style="color:#0000CC;">;</span><br></li><li><br></li><li><span style="color:#FF9900;">-- 写入从库信息</span><br></li><li>&nbsp;<span style="color:#0000FF;">INSERT</span> <span style="color:#0000FF;">INTO</span> dsns <span style="color:#0000CC;">(</span>parent_id<span style="color:#0000CC;">,</span>dsn<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">values</span><span style="color:#0000CC;">(</span>1<span style="color:#0000CC;">,</span> <span style="color:#FF00FF;">"h=replica_host,u=checksums,p=password,P=3306"</span><span style="color:#0000CC;">)</span><span style="color:#0000CC;">;</span> <br></li><li><span style="color:#FF9900;">-- 如果有多个从库,就插入多条记录. </span><br></li><li><span style="color:#FF9900;">-- 也可以按如下简写</span><br></li><li><span style="color:#0000FF;">INSERT</span> <span style="color:#0000FF;">INTO</span> dsns <span style="color:#0000CC;">(</span>parent_id<span style="color:#0000CC;">,</span>dsn<span style="color:#0000CC;">)</span> <span style="color:#0000FF;">values</span><span style="color:#0000CC;">(</span>1<span style="color:#0000CC;">,</span> <span style="color:#FF00FF;">"h=replica_host"</span><span style="color:#0000CC;">)</span><span style="color:#0000CC;">;</span></li></ol></div><br></li>
+
+  <li>全库校验的命令<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li>./pt-table-checksum h='192.168.250.249',u='checksums',p='xxxx',P=3306 --nocheck-replication-filters --replicate=pt.checksums --recursion-method=dsn=h=host,D=pt,t=dsns</li></ol></div></li></ol>
+
+<ul><li>脚本<br><div id="codeText" class="codeText"><ol style="margin-left: 0px; padding: 5px 0pt; " start="1" class="dp-css"><li>#!/bin/bash</li><li># ########################################################################</li><li># This program is percona-toolkit shell</li><li># Version: 1.0 (20120926)</li><li># Authors: lianjie.ning@qunar.com</li><li># History:</li><li># ########################################################################</li><li>set -e</li><li>set -u</li><li>if [ $# -eq 0 ]; then</li><li>echo "Usage:</li><li>$0 -h, help</li><li>$0 -P port -c [pt-table-checksum]"</li><li>exit</li><li>fi</li><li>trap "send_mail" EXIT</li><li># send mail</li><li>function send_mail()</li><li>{</li><li>ESUBJECT="$HOSTNAME $0"</li><li>EMAIL='xxx@xxx.com'</li><li>if [ -r $LOG ]; then</li><li>cat $LOG |mail -s "$ESUBJECT" $EMAIL</li><li>else</li><li>echo "The log($LOG) is not exist !" |mail -s "$ESUBJECT" $EMAIL</li><li>fi</li><li>rm "$LOG"</li><li>}</li><li># default variables</li><li>TIME=`date +%Y%m%d%H%M%S`</li><li>LOG="/tmp/$HOSTNAME.checksum.log"</li><li>#CHECKSUM="/usr/local/bin/pt-table-checksum"</li><li>CHECKSUM="/home/lianjie.ning/pt-table-checksum"</li><li>exec 1&gt;&gt;$LOG 2&gt;$LOG</li><li>function checksum()</li><li>{</li><li>master_host="192.168.250.249"</li><li>user="checksums"</li><li>password="xxxx"</li><li>: ${port:="3306"}</li><li>db_table="pt.checksums"</li><li>echo "MySQL Port: $port"</li><li>echo "Verify MySQL replication integrity"</li><li>$CHECKSUM h="$master_host",u="$user",p="$password",P="$port" --nocheck-replication-filters --replicate=$db_table --recursion-method=dsn=D=pt,t=dsns</li><li>}</li><li># main</li><li>while getopts :P:c arg</li><li>do</li><li>case $arg in</li><li>P)</li><li>port="$OPTARG"</li><li>;;</li><li>c)</li><li>checksum</li><li>;;</li><li>:)</li><li>echo "$arg: 错误参数"</li><li>;;</li><li>\?)</li><li>echo "$arg: 非法选项"</li><li>;;</li><li>esac</li><li>done</li></ol></div>
+
+
+六. 问题处理:<br><ul>
+</ul>
+
+<ol>
+  <li>在主库上执行
+    <br>pt-table-checksum h='192.168.250.249',u='checksums',p='xxxx',P=3306 -d mysql --nocheck-replication-filters --replicate=test.checksums
+
+    <br>需要注意test.checksums是否存在,如果存在,则手工删除,否则会报如下错误
+
+    <br><font color="#f00000">06-07T16:54:23 User does not have all privileges on --replicate table `test`.`checksums`.</font></li>
+
+  <li>binlog_format问题(脚本bug)
+    <br><font color="#f00000">06-07T19:06:07 Error checksumming table mysql.columns_priv: Error executing checksum query: Checksum query for table mysql.columns_priv caused MySQL error 1592:
+
+    </font><br>&nbsp;&nbsp;&nbsp; Level: Note
+
+    <br>&nbsp;&nbsp;&nbsp;&nbsp; Code: 1592
+
+    <br>&nbsp; Message: Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. REPLACE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are replaced. This order cannot be predicted and may differ on master and the slave.
+
+    <br>&nbsp;&nbsp;&nbsp; Query: REPLACE INTO `test`.`checksums` (db, tbl, chunk, chunk_index, lower_boundary, upper_boundary, this_cnt, this_crc) SELECT ?, ?, ?, ?, ?, ?, COUNT(<b>) AS cnt, COALESCE(LOWER(CONV(BIT_XOR(CAST(CRC32(CONCAT_WS('#', `host`, `db`, `user`, `table_name`, `column_name`, `timestamp` + 0, `column_priv`)) AS UNSIGNED)), 10, 16)), 0) AS crc FROM `mysql`.`columns_priv` /*checksum table</b>/
+
+    <br>该问题与复制过滤器replicate-do-db 和 pt-table-checksums,innodb_strict_mode = 1均没有关系
+
+    <br>脚本的bug,在mysql 5.5.18版本之后,都会出现这个问题
+
+    <br><a href="https://bugs.launchpad.net/percona-toolkit/+bug/919499" target="_blank">https://bugs.launchpad.net/percona-toolkit/+bug/919499</a>
+
+    <br>下个新版本,已经修复
+
+    <br><a href="http://bazaar.launchpad.net/~percona-toolkit-dev/percona-toolkit/2.1/view/head:/bin/pt-table-checksum" target="_blank">http://bazaar.launchpad.net/~percona-toolkit-dev/percona-toolkit/2.1/view/head:/bin/pt-table-checksum</a></li>
+
+  <li>索引问题
+    <br><font color="#f00000">06-07T21:19:31 Cannot checksum table db.table: There is no good index and the table is oversized. at ./pt-table-checksum line 3899.</font><br>因为该工具是根据主键索引或者唯一索引来分块进行校验的,默认是1000行为一块.</li>
+</ol></li></ul></div></div>           </div>

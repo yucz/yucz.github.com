@@ -1,0 +1,231 @@
+---
+layout: default
+title: Percona Toolkit介绍
+description: Percona Toolkit介绍
+categories: [mysql]
+tags: [percona]
+---
+<div id="cnblogs_post_body"><p>本文转载于：<a href="http://www.cnblogs.com/magialmoon/p/3472804.html">http://www.cnblogs.com/magialmoon/p/3472804.html</a></dev>
+
+<div class="postBody">
+<div id="cnblogs_post_body"><p><a href="http://www.cnblogs.com/magialmoon/p/3439042.html">上一篇</a>文章简单介绍了下EXPLAIN的用法，今天主要介绍以下几点内容：</p>
+<p><a href="#manchaxunrizhi">慢查询日志</a></p>
+<ul>
+<li><a href="#dakaimanchaxun">打开慢查询日志</a></li>
+<li><a href="#baocunmanchaxundaobiaozhong">保存慢查询日志到表中</a></li>
+<li><a href="#manchaxunrizhifenxi">慢查询日志分析</a></li>
+</ul>
+<p><a href="#PerconaToolkit">Percona Toolkit介绍</a></p>
+<ul>
+<li><a href="#anzhuang">安装</a></li>
+<li><a href="#pt-query-digest">pt-query-digest</a></li>
+<li><a href="#pt-index-usage">pt-index-usage</a></li>
+<li><a href="#pt-query-advisor">pt-query-advisor</a></li>
+</ul>
+<p><a href="#SHOW-PROFILE">SHOW PROFILE</a></p>
+<p><a href="#performance_schema">performance_schema</a></p>
+<p>&nbsp;</p>
+<h1><a name="manchaxunrizhi"></a>慢查询日志</h1>
+<h2><a name="dakaimanchaxun"></a>打开慢查询日志</h2>
+<p>慢查询日志，顾名思义就是记录执行比较慢查询的日志。</p>
+<p>查看是否开启慢查询日志：</p>
+<div class="cnblogs_code">
+<pre>show variables like <span style="color: #800000;">'</span><span style="color: #800000;">%slow%</span><span style="color: #800000;">'</span>;</pre>
+</div>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14132310-22e2ab8974f14feb9629a6f169d8aec4.png" alt=""></p>
+<p>打开慢查询日志。修改MySQL的配置文件my.cn一般是在/etc目录下面，加上下面三行配置后重启MySQL。</p>
+<div class="cnblogs_code">
+<pre>slow_query_log =<span style="color: #000000;"> ON
+slow_</span>launch_<span style="color: #0000ff;">time</span> = <span style="color: #800080;">2</span><span style="color: #000000;">
+slow_</span>query_log_<span style="color: #0000ff;">file</span> = /usr/local/mysql/data/slow_query.log</pre>
+</div>
+<p>slow_launch_time只能精确到秒，如果需要更精确可以使用一些第三方的工具比如后面介绍的pt-query-digest。</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14132456-6bcb01c78ee2424fba56be375a80967f.png" alt=""></p>
+<p><strong>注意：</strong>我这里用的MySQL版本是5.6，不同版本的MySQL开启慢查询的配置是不同的，比如5.6之前的某些版本是ong_query_time, long_query_time和log-slow-queries。可以先在终端执行<strong>show variables like '%slow%';</strong>查看下当前版本具体配置是什么。</p>
+<p>也可以在终端通过设置全局变量来打开慢查询日志：</p>
+<div class="cnblogs_code">
+<pre>set  @@global.slow_query_log = ON;</pre>
+</div>
+<h2><a name="baocunmanchaxundaobiaozhong"></a>保存慢查询日志到表中</h2>
+<p>MySQL支持将慢查询日志保存到mysql.slow_log这张表中。通过@@global.log_output可以设置默认为TABLE，FILE和TABLE只能同时使用一个。</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14133202-16185fdb9081462897611fb2b6406ff4.png" alt=""></p>
+<div class="cnblogs_code">
+<pre>set @@global.log_output=<span style="color: #800000;">'</span><span style="color: #800000;">TABLE</span><span style="color: #800000;">'</span>;</pre>
+</div>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14133234-6e82c9d85248431c9b5934c30c49cc29.png" alt=""></p>
+<p>我们可以使用下面的语句来模拟慢查询：</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">select</span> <span style="color: #0000ff;">sleep</span>(<span style="color: #800080;">10</span>);</pre>
+</div>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14133329-aca2dd8e3f164da484680bc702a9d6a7.png" alt=""></p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14133335-1844bf7ac6c24bb3b3672ae24a60e696.png" alt="" width="951" height="119"></p>
+<h2><a name="manchaxunrizhifenxi"></a>慢查询日志分析</h2>
+<p>1、可以使用MySQL自带的mysqldumpslow工具。使用很简单，可以跟-help来查看具体的用法。</p>
+<div class="cnblogs_code">
+<pre># -<span style="color: #000000;">s：排序方式。c , t , l , r 表示记录次数、时间、查询时间的多少、返回的记录数排序；
+#                             ac , at , al , </span><span style="color: #0000ff;">ar</span><span style="color: #000000;"> 表示相应的倒叙；
+# </span>-<span style="color: #000000;">t：返回前面多少条的数据；
+# </span>-<span style="color: #000000;">g：包含什么，大小写不敏感的；
+mysqldumpslow </span>-s r -t <span style="color: #800080;">10</span>  /<span style="color: #000000;">slowquery.log     #slow记录最多的10个语句
+mysqldumpslow </span>-s t -t <span style="color: #800080;">10</span> -g <span style="color: #800000;">"</span><span style="color: #800000;">left join</span><span style="color: #800000;">"</span>  /slowquery.log     #按照时间排序前10中含有<span style="color: #800000;">"</span><span style="color: #800000;">left join</span><span style="color: #800000;">"</span>的</pre>
+</div>
+<p>2、可以导到mysql.slow_query表中，然后通过sql语句进行分析。</p>
+<p>3、使用第三方工具，下面会有介绍。</p>
+<p>&nbsp;</p>
+<h1><a name="PerconaToolkit"></a>Percona Toolkit介绍</h1>
+<p><span lang="EN-US">percona-toolkit</span><span>是一组高级命令行工具的集合，用来执行各种通过手工执行非常复杂和麻烦的</span><span lang="EN-US">mysql</span><span>和系统任务。这些任务包括：</span></p>
+<ul>
+<li>检查master和slave数据的一致性</li>
+<li>有效地对记录进行归档</li>
+<li>查找重复的索引</li>
+<li>对服务器信息进行汇总</li>
+<li>分析来自日志和tcpdump的查询</li>
+<li>当系统出问题的时候收集重要的系统信息</li>
+</ul>
+<h2><a name="anzhuang"></a>安装</h2>
+<p>安装percona-toolkit非常简单，到<a href="http://www.percona.com/software/percona-toolkit">官网</a>下载.tar.gz包：</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">wget</span> percona.com/get/percona-toolkit.<span style="color: #0000ff;">tar</span><span style="color: #000000;">.gz
+</span><span style="color: #0000ff;">tar</span> -zxvf percona-toolkit-<span style="color: #800080;">2.2</span>.<span style="color: #800080;">5</span>.<span style="color: #0000ff;">tar</span>.gz</pre>
+</div>
+<p>然后依次执行下面的命令：</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">perl</span><span style="color: #000000;"> Makefile.PL
+</span><span style="color: #0000ff;">make</span>
+<span style="color: #0000ff;">make</span><span style="color: #000000;"> test
+</span><span style="color: #0000ff;">make</span> <span style="color: #0000ff;">install</span></pre>
+</div>
+<p>默认的会被安装在/usr/local/bin目录下。执行man percona-toolkit可以查看安装了哪些工具。</p>
+<p>运行工具可能会遇到下面的错误：</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14134657-5dcd0508af9344f4946a2eb9988cd4ab.png" alt=""></p>
+<p>这是因为缺少相应包，.pm包实际上perl的包，运行下面的命令安装即可：</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">yum</span> <span style="color: #0000ff;">install</span> -y <span style="color: #0000ff;">perl</span>-Time-HiRes</pre>
+</div>
+<p>如果安装过程中出现” Error Downloading Packages”错误，尝试yum clean all后再安装。使用其Percona Toolkit中其他工具也可能会遇到类似的问题，按照提示安装相应的perl包就可以了。</p>
+<p>Percona Toolkit整个工具箱提供了非常多实用的工具，具体的使用方法可以参看<a href="http://www.percona.com/doc/percona-toolkit/2.1/#tools">官方文档</a>。</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14135305-195a1e6f2ea84165b2b3ccffaa175f5c.png" alt=""></p>
+<p>下面有选择的给大家介绍几个有用的工具。</p>
+<h2><a name="pt-query-digest"></a>pt-query-digest</h2>
+<p>pt-query-digest可以从普通MySQL日志，慢查询日志以及二进制日志中分析查询，甚至可以从SHOW PROCESSLIST和MySQL协议的tcpdump中进行分析，如果没有指定文件，它从标准输入流（STDIN）中读取数据。</p>
+<p>最简单的用法如下：</p>
+<div class="cnblogs_code">
+<pre>pt-query-digest slow.logs</pre>
+</div>
+<p>输出信息大致如下:</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14135450-6f7a732598054f7aa311e95cbd4df3b1.png" alt=""></p>
+<p>整个输出分为三大部分：</p>
+<p>1、整体概要（Overall）</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14135519-a16b63d50d724d72abea4fcf4727bb29.png" alt=""></p>
+<p>这个部分是一个大致的概要信息(类似loadrunner给出的概要信息)，通过它可以对当前MySQL的查询性能做一个初步的评估，比如各个指标的最大值(max)，平均值(min)，95%分布值，中位数(median)，标准偏差(stddev)。这些指标有查询的执行时间（Exec time），锁占用的时间（Lock time），MySQL执行器需要检查的行数（Rows examine），最后返回给客户端的行数（Rows sent），查询的大小。</p>
+<p>2、查询的汇总信息（Profile）</p>
+<p>这个部分对所有”重要”的查询(通常是比较慢的查询)做了个一览表:</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14135931-d9407d7d3250419e8950622c96e68f65.png" alt=""></p>
+<p>每个查询都有一个Query ID，这个ID通过Hash计算出来的。pt-query-digest是根据这个所谓的Fingerprint来group by的。举例下面两个查询的Fingerprint是一样的都是select * from table1 where column1 = ?，工具箱中也有一个与之相关的工具pt-fingerprint。</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">select</span> * from table1 where column1 = <span style="color: #800080;">2</span>
+<span style="color: #0000ff;">select</span> * from table1 where column1 = <span style="color: #800080;">3</span></pre>
+</div>
+<ul>
+<li>Rank整个分析中该“语句”的排名，一般也就是性能最常的。</li>
+<li>Response time&nbsp; “语句”的响应时间以及整体占比情况。</li>
+<li>Calls 该“语句”的执行次数。</li>
+<li>R/Call 每次执行的平均响应时间。</li>
+<li>V/M 响应时间的差异平均对比率。</li>
+</ul>
+<p>在尾部有一行输出，显示了其他2个占比较低而不值得单独显示的查询的统计数据。</p>
+<p>3、详细信息</p>
+<p>这个部分会列出Profile表中每个查询的详细信息：</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14140506-ac9b8554effb47329e046c82b54179e3.png" alt=""></p>
+<p>包括Overall中有的信息、查询响应时间的分布情况以及该查询”入榜”的理由。</p>
+<p>pt-query-digest还有很多复杂的操作，这里就不一一介绍了。比如：从PROCESSLIST中查询某个MySQL中最慢的查询：</p>
+<div class="cnblogs_code">
+<pre>pt-query-digest –processlist h=host1</pre>
+</div>
+<p>从tcpdump中分析：</p>
+<div class="cnblogs_code">
+<pre>tcpdump -s <span style="color: #800080;">65535</span> -x -nn -q -tttt -i any -c <span style="color: #800080;">1000</span> port <span style="color: #800080;">3306</span> &gt;<span style="color: #000000;"> mysql.tcp.txt
+pt</span>-query-digest --type tcpdump mysql.tcp.txt</pre>
+</div>
+<p>从一台机器上讲slow log保存到另外一台机器上待稍后详细分析：</p>
+<div class="cnblogs_code">
+<pre>pt-query-digest --review h=host2 --no-report slow.log</pre>
+</div>
+<p>还可以跟一些过滤条件。详见官方文档：<a href="http://www.percona.com/doc/percona-toolkit/2.2/pt-query-digest.html">http://www.percona.com/doc/percona-toolkit/2.2/pt-query-digest.html</a></p>
+<p>另外结合一些第三方工具还能生成相应的报表，可以参考这里：<a href="http://biancheng.dnbcw.info/mysql/433514.html">http://biancheng.dnbcw.info/mysql/433514.html</a></p>
+<p><strong>建议</strong>：当slow log很大的时候最好还是将日志文件移到其他机器上进行分析。</p>
+<p>&nbsp;</p>
+<h2><a name="pt-index-usage"></a>pt-index-usage</h2>
+<p>这个工具主要是用来分析查询的索引使用情况。</p>
+<div class="cnblogs_code">
+<pre>pt-index-usage slow_query.log --h localhost --password <span style="color: #800080;">123456</span></pre>
+</div>
+<p>详细的用法 –help查看再对照官网就差不再赘述。</p>
+<p><strong>注意</strong>使用这个工具需要MySQL必须要有密码，另外运行时可能报找不到/var/lib/mysql/mysql.sock的错，简单的从/tmp/mysql.sock链接一个就行了。</p>
+<p>重点要说明的是pt-index-usage只能分析慢查询日志，所以如果想全面分析所有查询的索引使用情况就得将slow_launch_time设置为0，因此请谨慎使用该工具，线上使用的话最好在凌晨进行分析，尤其分析大量日志的时候是很耗CPU的。</p>
+<p>整体来说这个工具是不推荐使用的，要想实现类似的分析可以考虑一些其他第三方的工具，比如：mysqlidxchx, userstat和check-unused-keys。网上比较推荐的是userstat，一个Google贡献的patch。</p>
+<p>Oracle是可以将执行计划保存到性能视图中的，这样分析起来可能更灵活，但是目前我还没找到MySQL中类似的做法。</p>
+<p>&nbsp;</p>
+<h2><a name="pt-upgrade"></a>pt-upgrade</h2>
+<p>这个工具用来检查在新版本中运行的SQL是否与老版本一样，返回相同的结果，最好的应用场景就是数据迁移的时候。</p>
+<div class="cnblogs_code">
+<pre>pt<span style="color: #808080;">-</span>upgrade h<span style="color: #808080;">=</span>host1 h<span style="color: #808080;">=</span>host2 slow.<span style="color: #ff00ff;">log</span></pre>
+</div>
+<p>&nbsp;</p>
+<h2><a name="pt-query-advisor"></a>pt-query-advisor&nbsp;</h2>
+<p>静态查询分析工具。能够解析查询日志、分析查询模式，然后给出所有可能存在潜在问题的查询，并给出足够详细的建议。这个工具好像2.2的版本给去掉了，有可能是因为对性能影响比较大新版本直接去掉了。</p>
+<p><strong>总结</strong>:上面这些工具最好不要直接在线上使用，应该作为上线辅助或故障后离线分析的工具，也可以做性能测试的时候配合着使用。</p>
+<p>&nbsp;</p>
+<h1><a name="SHOW-PROFILE"></a>SHOW PROFILE</h1>
+<p>SHOW PROFILE是Google高级架构师Jeremy Cole贡献给MySQL社区的，它可以用来MySQL执行语句时候所使用的资源。默认是关闭的，需要打开执行下面的语句：</p>
+<div class="cnblogs_code">
+<pre>set profiling = <span style="color: #800080;">1</span>;#这个命令只在本会话内起作用。</pre>
+</div>
+<p>执行简单的SHOW PROFILES可以看到打开profiling之后所有查询的执行时间。</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14141743-60c95ccca891485e9156e59c5390e9f2.png" alt=""></p>
+<p>执行SHOW PROFILE [TYPE] FOR QUERY Query_ID可以看到MySQL执行某个查询各个步骤的各项性能指标的详细信息：</p>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14141847-2bc1f3dff3e94652b91ad02e558fe9c5.png" alt=""></p>
+<p>如果没有指定FOR QUERY则显示最近一条查询的详细信息。TYPE是可选的，有以下几个选项：</p>
+<ul>
+<li>ALL 显示所有性能信息</li>
+<li>BLOCK IO 显示块IO操作的次数</li>
+<li>CONTEXT SWITCHES 显示上下文切换次数，不管是主动还是被动</li>
+<li>CPU 显示用户CPU时间、系统CPU时间</li>
+<li>IPC 显示发送和接收的消息数量</li>
+<li>MEMORY [暂未实现]</li>
+<li>PAGE FAULTS 显示页错误数量</li>
+<li>SOURCE 显示源码中的函数名称与位置</li>
+<li>SWAPS 显示SWAP的次数</li>
+</ul>
+<p>MySQL在执行查询语句的时候会有很多步骤，这里就不一一赘述了，用到的时候网上搜下就行。需要<strong>特别说明</strong>的是Sending data这个步骤，给人感觉是MySQL把数据发送给客户端的耗时，其实不然，这个步骤包括了MySQL内部各个存储之间复制数据的过程，比如硬盘的寻道。</p>
+<p><strong>总结</strong>：前面的慢查询日志分析更像是对整个MySQL查询情况做一个全面的检查，而SHOW PROFILE则是对单个查询语句的剖析，通常当现网出现问题时应该结合二者。使用慢查询分析定位到具体的查询，使用SHOW PROFILE定位到具体的问题，是Sending data比较耗时还是System lock比较耗时...</p>
+<p>&nbsp;</p>
+<h1><a name="performance_schema"></a>performance_schema</h1>
+<p>这两个库保存了MySQL的一些性能和元数据相关的信息，其中performance_schema是MySQL5.5才新增的，上面提到的很多工具其实利用了这个库的信息。比如SHOW PROFILE ALL FOR QUERY 2:的信息还可以通过下面的查询获取：</p>
+<div class="cnblogs_code">
+<pre><span style="color: #0000ff;">SELECT</span> <span style="color: #808080;">*</span> <span style="color: #0000ff;">FROM</span> information_schema.profiling <span style="color: #0000ff;">WHERE</span> query_id <span style="color: #808080;">=</span> <span style="color: #800000; font-weight: bold;">2</span> <span style="color: #0000ff;">ORDER</span> <span style="color: #0000ff;">BY</span> seq;</pre>
+</div>
+<p>利用performance_schema还可以做一些更灵活的统计：</p>
+<div class="cnblogs_code"><div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div>
+<pre><span style="color: #0000ff;">SET</span> <span style="color: #008000;">@query_id</span> <span style="color: #808080;">=</span> <span style="color: #800000; font-weight: bold;">1</span><span style="color: #000000;">;
+</span><span style="color: #0000ff;">SELECT</span> STATE,<span style="color: #ff00ff;">SUM</span>(DURATION) <span style="color: #0000ff;">AS</span><span style="color: #000000;"> Total_R,
+    </span><span style="color: #ff00ff;">ROUND</span>(<span style="color: #800000; font-weight: bold;">100</span><span style="color: #808080;">*</span><span style="color: #ff00ff;">SUM</span>(DURATION)<span style="color: #808080;">/</span>(<span style="color: #0000ff;">SELECT</span> <span style="color: #ff00ff;">SUM</span>(DURATION) <span style="color: #0000ff;">FROM</span><span style="color: #000000;"> INFORMATION_SCHEMA.PROFILING
+    </span><span style="color: #0000ff;">WHERE</span> QUERY_ID <span style="color: #808080;">=</span> <span style="color: #008000;">@query_id</span>),<span style="color: #800000; font-weight: bold;">2</span>) <span style="color: #0000ff;">AS</span><span style="color: #000000;"> Pct_R,
+    </span><span style="color: #ff00ff;">COUNT</span>(<span style="color: #808080;">*</span>) <span style="color: #0000ff;">AS</span><span style="color: #000000;"> Calls,
+    </span><span style="color: #ff00ff;">SUM</span>(DURATION)<span style="color: #808080;">/</span><span style="color: #ff00ff;">COUNT</span>(<span style="color: #808080;">*</span>) <span style="color: #0000ff;">AS</span> "R<span style="color: #808080;">/</span><span style="color: #000000;">Call"
+</span><span style="color: #0000ff;">FROM</span><span style="color: #000000;"> INFORMATION_SCHEMA.PROFILING
+</span><span style="color: #0000ff;">WHERE</span> QUERY_ID <span style="color: #808080;">=</span> <span style="color: #008000;">@query_id</span>
+<span style="color: #0000ff;">GROUP</span> <span style="color: #0000ff;">BY</span><span style="color: #000000;"> STATE
+</span><span style="color: #0000ff;">ORDER</span> <span style="color: #0000ff;">BY</span> Total_R <span style="color: #0000ff;">DESC</span>;</pre>
+<div class="cnblogs_code_toolbar"><span class="cnblogs_code_copy"><a href="javascript:void(0);" onclick="copyCnblogsCode(this)" title="复制代码"><img src="http://common.cnblogs.com/images/copycode.gif" alt="复制代码"></a></span></div></div>
+<p><img src="http://images.cnitblog.com/blog/288950/201312/14142210-ba293ea1eecb4debb35218c941a5244a.png" alt=""></p>
+<p>这个简单的查询可以在《高性能MySQL第三版》中找到，可它能统计SHOW PROFILE各个步骤的耗时、耗时占比、调用API次数以及每次的平均耗时。在《高性能MySQL第三版》中还提到了很多有用的工具（SHOW STATUS,SHOW PROCESSLIST...）包括使用方法，强烈推荐这本书。</p>
+<p>&nbsp;</p>
+<p>Ok，今天的介绍就到这里，这两篇文章的主要目的是希望自己在发现问题的时候可以知道从何下手，也希望能够大家带来一些实用价值。下一篇准备介绍一下MySQL执行语句的一些基本原理，俗话说磨刀不误砍柴工嘛！</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p>
+<p>&nbsp;</p></div>
+
+
+</div>
+</div>
