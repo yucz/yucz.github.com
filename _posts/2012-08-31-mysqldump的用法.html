@@ -1,0 +1,33 @@
+﻿---
+layout: default
+title: mysqldump的用法
+description: mysqldump的用法
+categories: [mysql]
+tags: [备份迁移]
+---
+
+<div class="Blog_wz1" style="word-wrap: break-word;">
+利用mysqldump进行数据库导出是我最近常做的事情，其中遇到不少问题，特意mark一下。<br>mysqldump <font color="#F00000">-uroot&nbsp; -p1234567</font>&nbsp; test &gt; <font color="#00F000">C:\test.sql</font><br>上面语句中，红色部分是最坑爹的，分别对应了账户和密码，不知道为什么，我把它们分开来写，如-u root -p 1234567就经常出错，合起来写就没错了，真是莫名其妙。<img src="http://blog.chinaunix.net/blog/image/editor/pb/6.gif"><br><br>&nbsp; 后面的部分对应上的，分别是导出数据库的名字和对应输出的脚本。还有一点要注意的是，要么你把mysqldump这个命令加到你的环境变量中，要么，你要打开控制台-》window+r -&gt;输入cmd-&gt;cd c:/mysql安装文件的bin目录，如C:\Program Files\MySQL\MySQL Server 5.5\bin，然后敲入以上命令，否则总会报命令找不到的提示；<br>下面是一些mysqldump的用法：<br><div>导出要用到MySQL的mysqldump工具，基本用法是：&nbsp;&nbsp;&nbsp;</div>
+<div>shell&gt;&nbsp;mysqldump&nbsp;[OPTIONS]&nbsp;database&nbsp;[tables]&nbsp;&nbsp;&nbsp;</div>
+<div>如果你不给定任何表，整个数据库将被导出。&nbsp;&nbsp;&nbsp;</div>
+<div>通过执行mysqldump&nbsp;--help，你能得到你mysqldump的版本支持的选项表。&nbsp;&nbsp;&nbsp;</div>
+<div>注意，如果你运行mysqldump没有--quick或--opt选项，mysqldump将在导出结果前装载整个结果集到内存中，如果你正在导出一个大的数据库，这将可能是一个问题。&nbsp;&nbsp;&nbsp;</div>
+<div>mysqldump支持下列选项：&nbsp;&nbsp;&nbsp;</div>
+<div>--add-locks&nbsp;&nbsp;&nbsp;<br>在每个表导出之前增加LOCK&nbsp;TABLES并且之后UNLOCK&nbsp;TABLE。(为了使得更快地插入到MySQL)。&nbsp;&nbsp;&nbsp;<br>--add-drop-table&nbsp;&nbsp;&nbsp;<br>在每个create语句之前增加一个drop&nbsp;table。&nbsp;&nbsp;&nbsp;<br>--allow-keywords&nbsp;&nbsp;&nbsp;<br>允许创建是关键词的列名字。这由表名前缀于每个列名做到。&nbsp;&nbsp;&nbsp;<br>-c,&nbsp;--complete-insert&nbsp;&nbsp;&nbsp;<br>使用完整的insert语句(用列名字)。&nbsp;&nbsp;&nbsp;<br>-C,&nbsp;--compress&nbsp;&nbsp;&nbsp;<br>如果客户和服务器均支持压缩，压缩两者间所有的信息。&nbsp;&nbsp;&nbsp;<br>--delayed&nbsp;&nbsp;&nbsp;<br>用INSERT&nbsp;DELAYED命令插入行。&nbsp;&nbsp;&nbsp;<br>-e,&nbsp;--extended-insert&nbsp;&nbsp;&nbsp;<br>使用全新多行INSERT语法。（给出更紧缩并且更快的插入语句）&nbsp;&nbsp;&nbsp;<br>-#,&nbsp;--debug[=option_string]&nbsp;&nbsp;&nbsp;<br>跟踪程序的使用(为了调试)。&nbsp;&nbsp;&nbsp;<br>--help&nbsp;&nbsp;&nbsp;<br>显示一条帮助消息并且退出。&nbsp;&nbsp;&nbsp;<br>--fields-terminated-by=...&nbsp;&nbsp;&nbsp;<br>　&nbsp;&nbsp;&nbsp;<br>--fields-enclosed-by=...&nbsp;&nbsp;&nbsp;<br>　&nbsp;&nbsp;&nbsp;<br>--fields-optionally-enclosed-by=...&nbsp;&nbsp;&nbsp;<br>　&nbsp;&nbsp;&nbsp;<br>--fields-escaped-by=...&nbsp;&nbsp;&nbsp;<br>　&nbsp;&nbsp;&nbsp;<br>--fields-terminated-by=...&nbsp;&nbsp;&nbsp;<br>这些选择与-T选择一起使用，并且有相应的LOAD&nbsp;DATA&nbsp;INFILE子句相同的含义。&nbsp;&nbsp;&nbsp;<br>LOAD&nbsp;DATA&nbsp;INFILE语法。&nbsp;&nbsp;&nbsp;<br>-F,&nbsp;--flush-logs&nbsp;&nbsp;&nbsp;<br>在开始导出前，洗掉在MySQL服务器中的日志文件。&nbsp;&nbsp;&nbsp;<br>-f,&nbsp;--force,&nbsp;&nbsp;&nbsp;<br>即使我们在一个表导出期间得到一个SQL错误，继续。&nbsp;&nbsp;&nbsp;<br>-h,&nbsp;--host=..&nbsp;&nbsp;&nbsp;<br>从命名的主机上的MySQL服务器导出数据。缺省主机是localhost。&nbsp;&nbsp;&nbsp;<br>-l,&nbsp;--lock-tables.&nbsp;&nbsp;&nbsp;<br>为开始导出锁定所有表。&nbsp;&nbsp;&nbsp;<br>-t,&nbsp;--no-create-info&nbsp;&nbsp;&nbsp;<br>不写入表创建信息(CREATE&nbsp;TABLE语句）&nbsp;&nbsp;&nbsp;<br>-d,&nbsp;--no-data&nbsp;&nbsp;&nbsp;<br>不写入表的任何行信息。如果你只想得到一个表的结构的导出，这是很有用的！&nbsp;&nbsp;&nbsp;<br>--opt&nbsp;&nbsp;&nbsp;<br>同--quick&nbsp;--add-drop-table&nbsp;--add-locks&nbsp;--extended-insert&nbsp;--lock-tables。&nbsp;&nbsp;&nbsp;<br>应该给你为读入一个MySQL服务器的尽可能最快的导出。&nbsp;&nbsp;&nbsp;<br>-pyour_pass,&nbsp;--password[=your_pass]&nbsp;&nbsp;&nbsp;<br>与服务器连接时使用的口令。如果你不指定“=your_pass”部分，mysqldump需要来自终端的口令。&nbsp;&nbsp;&nbsp;<br>-P&nbsp;port_num,&nbsp;--port=port_num&nbsp;&nbsp;&nbsp;<br>与一台主机连接时使用的TCP/IP端口号。（这用于连接到localhost以外的主机，因为它使用&nbsp;Unix套接字。）&nbsp;&nbsp;&nbsp;<br>-q,&nbsp;--quick&nbsp;&nbsp;&nbsp;<br>不缓冲查询，直接导出至stdout；使用mysql_use_result()做它。&nbsp;&nbsp;&nbsp;<br>-S&nbsp;/path/to/socket,&nbsp;--socket=/path/to/socket&nbsp;&nbsp;&nbsp;<br>与localhost连接时（它是缺省主机)使用的套接字文件。&nbsp;&nbsp;&nbsp;<br>-T,&nbsp;--tab=path-to-some-directory&nbsp;&nbsp;&nbsp;<br>对
+于每个给定的表，创建一个table_name.sql文件，它包含SQL&nbsp;CREATE&nbsp;命令，和一个table_name.txt文件，它包含数
+据。&nbsp;注意：这只有在mysqldump运行在mysqld守护进程运行的同一台机器上的时候才工作。.txt文件的格式根据--fields-xxx和
+--lines--xxx选项来定。&nbsp;&nbsp;&nbsp;<br>-u&nbsp;user_name,&nbsp;--user=user_name&nbsp;&nbsp;&nbsp;<br>与服务器连接时，MySQL使用的用户名。缺省值是你的Unix登录名。&nbsp;&nbsp;&nbsp;<br>-O&nbsp;var=option,&nbsp;--set-variable&nbsp;var=option设置一个变量的值。可能的变量被列在下面。&nbsp;&nbsp;&nbsp;<br>-v,&nbsp;--verbose&nbsp;&nbsp;&nbsp;<br>冗长模式。打印出程序所做的更多的信息。&nbsp;&nbsp;&nbsp;<br>-V,&nbsp;--version&nbsp;&nbsp;&nbsp;<br>打印版本信息并且退出。&nbsp;&nbsp;&nbsp;<br>-w,&nbsp;--where='where-condition'&nbsp;&nbsp;&nbsp;<br>只导出被选择了的记录；注意引号是强制的！&nbsp;&nbsp;&nbsp;<br>"--where=user='jimf'"&nbsp;"-wuserid&gt;1"&nbsp;"-wuserid&lt;1"&nbsp;&nbsp;</div>
+<div>最常见的mysqldump使用可能制作整个数据库的一个备份：&nbsp;&nbsp;</div>
+<div>mysqldump&nbsp;--opt&nbsp;database&nbsp;&gt;&nbsp;backup-file.sql&nbsp;&nbsp;&nbsp;</div>
+<div>但是它对用来自于一个数据库的信息充实另外一个MySQL数据库也是有用的：&nbsp;&nbsp;&nbsp;</div>
+<div>mysqldump&nbsp;--opt&nbsp;database&nbsp;|&nbsp;mysql&nbsp;--host=remote-host&nbsp;-C&nbsp;database&nbsp;&nbsp;&nbsp;</div>
+<div>由于mysqldump导出的是完整的SQL语句，所以用mysql客户程序很容易就能把数据导入了：&nbsp;&nbsp;&nbsp;</div>
+<div>shell&gt;&nbsp;mysqladmin&nbsp;create&nbsp;target_db_name&nbsp;&nbsp;&nbsp;<br>shell&gt;&nbsp;mysql&nbsp;target_db_name&nbsp;&lt;&nbsp;backup-file.sql&nbsp;&nbsp;<br>就是&nbsp;&nbsp;<br>shell&gt;&nbsp;mysql&nbsp;库名&nbsp;&lt;&nbsp;文件名&nbsp;</div>
+<div>＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝<br>几个常用用例：</div>
+<div>1.导出整个数据库<br>&nbsp;mysqldump&nbsp;-u&nbsp;用户名&nbsp;-p&nbsp;数据库名&nbsp;&gt;&nbsp;导出的文件名&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp;mysqldump&nbsp;-u&nbsp;wcnc&nbsp;-p&nbsp;smgp_apps_wcnc&nbsp;&gt;&nbsp;wcnc.sql<br>2.导出一个表<br>&nbsp;mysqldump&nbsp;-u&nbsp;用户名&nbsp;-p&nbsp;数据库名&nbsp;表名&gt;&nbsp;导出的文件名<br>&nbsp;mysqldump&nbsp;-u&nbsp;wcnc&nbsp;-p&nbsp;smgp_apps_wcnc&nbsp;users&gt;&nbsp;wcnc_users.sql<br>3.导出一个数据库结构<br>&nbsp;&nbsp;mysqldump&nbsp;-u&nbsp;wcnc&nbsp;-p&nbsp;-d&nbsp;--add-drop-table&nbsp;smgp_apps_wcnc&nbsp;&gt;d:\wcnc_db.sql</div>
+<div>&nbsp;-d&nbsp;没有数据&nbsp;--add-drop-table&nbsp;在每个create语句之前增加一个drop&nbsp;table&nbsp;</div>
+<div>4.导入数据库<br>&nbsp;&nbsp;常用source&nbsp;命令<br>&nbsp;&nbsp;进入mysql数据库控制台，<br>&nbsp;&nbsp;如mysql&nbsp;-u&nbsp;root&nbsp;-p&nbsp;<br>&nbsp;&nbsp;<br>&nbsp;&nbsp;mysql&gt;use&nbsp;数据库</div>
+<div>&nbsp;&nbsp;然后使用source命令，后面参数为脚本文件（如这里用到的.sql）<br>&nbsp;&nbsp;mysql&gt;source&nbsp;d:\wcnc_db.sql</div>
+<br>
+	<br>
+</div>

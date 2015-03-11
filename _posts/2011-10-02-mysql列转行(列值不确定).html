@@ -1,0 +1,80 @@
+---
+layout: default
+title: mysql列转行(列值不确定)
+description: mysql列转行(列值不确定)
+categories: [mysql]
+tags: [SQL语法]
+---
+
+<div class="entry-content">
+<p>刚才同事有这样的一需求：<br>
+b列的值是不确定的，tag1—-tag50之间，但符合条件的tag最多为5个(不为空只有5个)，转换成行。</p>
+
+<div class="wp_syntax"><div class="code"><pre class="shell" style="font-family:monospace;">root@xxx 08:17:54&gt;select * from test;
++------------+-------+
+| a          | b     |
++------------+-------+
+| 2011-08-22 | tag1  | 
+| 2011-08-22 | tag2  | 
+| 2011-08-22 | tag3  | 
+| 2011-08-22 | tag30 | 
+| 2011-08-22 | tag40 | 
+| 2011-08-22 | NULL  | 
++------------+-------+</pre></div></div>
+
+<p>结果如下：</p>
+
+<div class="wp_syntax"><div class="code"><pre class="shell" style="font-family:monospace;">+------------+-------+-------+-------+-------+-------+ 
+| a          | b1    | b2    | b3    | b4    | b5    | 
++------------+-------+-------+-------+-------+-------+ 
+| 2011-08-22 | tag1  | tag2  |tag3   |tag30  | tag40 |
++------------+-------+-------+-------+-------+-------+</pre></div></div>
+
+<p>我的思路：</p>
+<p>1、把行的转换成列:</p>
+
+<div class="wp_syntax"><div class="code"><pre class="shell" style="font-family:monospace;">+------------+-------+-------+-------+----|
+| a          | b1                         |
++------------+-------+-------+-------+----|
+| 2011-08-22 | tag1,tag2,tag3,tag30,tag40 |
++------------+-------+-------+-------+----|</pre></div></div>
+
+<p>2、再b1字段拆开来，拆成多个字段</p>
+<p>解决方法：</p>
+
+<div class="wp_syntax"><div class="code"><pre class="shell" style="font-family:monospace;">root@xxx 08:24:46&gt;select a,group_concat(b) from test where b is not null;
++------------+----------------------------+
+| a          | group_concat(b)            |
++------------+----------------------------+
+| 2011-08-22 | tag1,tag2,tag3,tag30,tag40 | 
++------------+----------------------------+</pre></div></div>
+
+<p>分割函数：</p>
+
+<div class="wp_syntax"><div class="code"><pre class="shell" style="font-family:monospace;">root@xxx 08:25:58&gt;CREATE FUNCTION SPLIT_STR(
+    -&gt;   x VARCHAR(255),
+    -&gt;   delim VARCHAR(12),
+    -&gt;   pos INT
+    -&gt; )
+    -&gt; RETURNS VARCHAR(255)
+    -&gt; RETURN REPLACE(SUBSTRING(SUBSTRING_INDEX(x, delim, pos),
+    -&gt;        LENGTH(SUBSTRING_INDEX(x, delim, pos -1)) + 1),
+    -&gt;        delim, '');
+Query OK, 0 rows affected (0.00 sec)
+&nbsp;
+root@xxx 08:28:11&gt;select a,
+    -&gt;        split_str(group_concat(b), ',', 1) b1,
+    -&gt;        split_str(group_concat(b), ',', 2) b2,
+    -&gt;        split_str(group_concat(b), ',', 3) b3,
+    -&gt;        split_str(group_concat(b), ',', 4) b4,
+    -&gt;        split_str(group_concat(b), ',', 5) b5
+    -&gt;   from test
+    -&gt;  where b is not null;
++------------+------+------+------+-------+-------+
+| a          | b1   | b2   | b3   | b4    | b5    |
++------------+------+------+------+-------+-------+
+| 2011-08-22 | tag1 | tag2 | tag3 | tag30 | tag40 | 
++------------+------+------+------+-------+-------+</pre></div></div>
+
+
+</div>
