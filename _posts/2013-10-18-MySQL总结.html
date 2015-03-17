@@ -1,0 +1,279 @@
+---
+layout: default
+title: MySQL总结
+description: MySQL总结
+categories: [mysql]
+tags: [优化]
+---
+
+查询顺序：
+	例如：
+		(8) SELECT (9) DISTINCT<select_list>
+		(1) FROM <left_table>
+		(3) <join_type> JOIN <right_table>
+		(2) ON <join_condition>
+		(4) WHERE <where_condition>
+		(5) GROUP BY <group_condition>
+		(6) WITH {CUBE|ROLLUP}
+		(7) HAVING <having_condition>
+		(10) ORDER BY <order_by_list>
+		(11) LIMIT <limit_number>
+	以上是sql语句的执行顺序，
+		第一步：将左表和右表中的数据全部拿出来，做笛卡尔乘机，形成虚拟表VT1。
+		第二步：对虚拟表VT1进行on条件筛选，只有符合条件的记录才被插入到虚拟表VT2中。
+		第三步：将左表中未匹配的行添加到VT2中，形成VT3。
+		第四步：对VT3虚拟表进行where筛选，只有符合条件的插入到VT4中。
+		第五步：对VT4进行GROUP分组，形成VT5。
+		第六步：对VT5进行CUBE|ROLLUP操作，形成VT6。
+		第七步：对虚拟表VT6应用HAVING筛选，只有符合条件的被插入到VT7中。
+		第八步：第二次执行SELECT操作，选择指定的列，插入到VT8中。
+		第九步：DISTINCT去重，形成VT9。
+		第十步：将VT9按照指定字段执行ORDER BY，形成VT10。
+		第十一步：执行LIMIT，将结果VT11返回给用户。
+	几点注意：
+		1.ON条件有3个结果，true,false,unknow,将true保留，false过滤掉，unkown是没有右表与之匹配
+		2.如果左表有一条与右表能匹配上，则显示这条记录（不在显示右表为NULL的记录），如果没有匹配上则显示一条右表是NULL的记录
+		3.ON条件并没有真正的删除记录，记录还在虚表中，这叫做“添加外部行”
+		4.where是先于group by和select别名的，所以在where子句中不能使用聚合行数，和别名
+		5.NULL的比较，在on条件上是unknow被视为false，在group和order中被视为相等
+		6.在sql中一定要注意NULL值情况
+		7.EXPLAIN查看索引效果，应用索引导致查询器不会全表扫描，快速定位。但索引优化很需要技巧
+
+
+复杂查询：
+	子查询：
+	
+	连接与集合操作：
+		1.join：
+			cross join：返回两个表的m*n行记录
+			left outer join：添加外部行，on与where效果是不一样的
+			inner join：不添加外部行，条件在on和where上是一样的
+			以前版本：select * from tab1,tab2，相当于cross join
+			natural join：默认将两个相同的字段进行连接，相当于使用了using(col)，在优化器中有时候与cross效果一样
+			STRAIGHT_JOIN：强制先读取左边的表
+			连接操作：有不同的连接算法，以后多了解
+		2.集合：
+			union：
+			union all：
+			union distinct：
+			except等：虽然没有这些关键字，但是可以利用union，join等操作达到except效果
+	聚合与旋转操作：
+		avg() count(distinct) count() group_concat() max() min() sum() 等
+
+
+sql编程：
+	游标：
+		1.有人说用了游标处理效率很低，是因为游标需要对每一行进行处理，处理越复杂越慢，游标并不是一无是处
+		2.对于集合查询中时间复杂度是o(N*N)的，使用游标能显著提高效率，因为游标只是一遍扫描表
+		3.特殊情况是集合查询能很好的利用索引，集合查询可能比游标快
+		4.游标四步，declare open fetch close，使用技巧是在生命游标的sql语句要好，比如使用union等最高效的select
+
+	函数：函数的目的就是对选出来的某个字段进行处理，返回处理后的结果， 注意$$，;的使用，对if else，set,loop等掌握;
+		例子：业务逻辑完全虚构，主要是认识语法。
+			DELIMITER $$
+			DROP FUNCTION IF EXISTS FINDIP$$
+			CREATE FUNCTION FINDIP(ip VARCHAR(20)) RETURNS VARCHAR(20)
+			BEGIN
+			DECLARE _ip VARCHAR(20) DEFAULT "";
+			DECLARE i INT DEFAULT 0;
+			myloop:LOOP
+				SET i = cast(rand() * 100 AS UNSIGNED);
+				IF i>10 && i<=20 THEN
+					SET _ip = "10-20:" + ip;
+					LEAVE myloop;
+				ELSEIF i>20 && i<=30 THEN
+					SET _ip = "20-30:" + ip;
+					LEAVE myloop;
+				ELSE
+					SET _ip = ip;
+					LEAVE myloop;
+				END IF;
+			END LOOP myloop;
+			RETURN _ip;
+			END$$
+			DELIMITER ;
+	存储过程：in，out，inout参数，in调用时指定可以被修改但不能被返回，out在存储过程中可以被改变且能返回，inout调用时指定能改变且能返回
+		DELIMITER $$
+		DROP PROCEDURE IF EXISTS pro_find_region $$
+		CREATE PROCEDURE pro_find_region()
+		BEGIN
+			DECLARE _ip VARCHAR(30) DEFAULT "";
+			DECLARE _province VARCHAR(30) DEFAULT "";
+			DECLARE _city VARCHAR(30) DEFAULT "";
+			DECLARE _region VARCHAR(30) DEFAULT "";
+			DECLARE done INT DEFAULT 0; -- if条件只认0和1，-1当做ture
+			DECLARE cur CURSOR FOR SELECT ip,province,city,region FROM ips;
+			DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+			DROP TEMPORARY TABLE IF EXISTS $t_ip;
+			CREATE TEMPORARY TABLE $t_ip(
+				ip VARCHAR(20),
+				province VARCHAR(30),
+				city VARCHAR(30),
+				region VARCHAR(30)
+			);
+			OPEN cur;
+			read_loop:LOOP
+				FETCH cur INTO _ip,_province,_city,_region;
+				IF done THEN
+					LEAVE read_loop;
+				END IF;
+				IF _region <> "" THEN
+					INSERT INTO $t_ip SELECT _ip,_province,_city,_region;
+				END IF;
+			END LOOP;
+			CLOSE cur;
+			SELECT ip,province,city,region FROM $t_ip;
+			DROP TEMPORARY TABLE $t_ip;
+		END $$
+		DELIMITER ;
+
+	触发器：一个表的操作触发对另一个表的操作
+		DELIMITER $$
+		DROP TRIGGER IF EXISTS pro_tri $$
+		CREATE TRIGGER pro_tri 
+		AFTER UPDATE ON ips FOR EACH ROW
+		BEGIN
+			IF old.ip <> new.ip THEN
+				INSERT INTO ipp SELECT new.ip,old.province,old.city,old.region;
+			END IF;
+		END$$
+		DELIMITER ;
+		六种处罚类型：BEFORE INSERT、BEFORE UPDATE、BEFORE DELETE、AFTER INSERT、AFTER UPDATE、AFTER DELETE
+					  以及new old的使用。
+	事件：
+		CREATE EVENT pro_envent ON SCHEDULE EVERY 1 DAY
+			STARTS '2014-08-22 00:00:00'
+			ENDS '2014-08-22 00:00:00' +INTERVAL 40 DAY
+		ON COMPLETION PRESERVE DO
+			CALL pro_find_region();
+	事务：
+		理解ACID的意义，每个操作用一个经典的例子介绍
+		事务的类型，以及事务的控制语句和事务的隔离级别
+		在应用程序中好好使用事务控制语句
+		事务在数据库读写中影响很大
+索引：
+	1.深入理解顺序读取和随机读取的性能差异以及原因，顺序读取不需要频繁的移动磁头寻址，它的记录应该是链式的结构
+	2.索引最好全部在内存中，索引的组织算法是B+树，平衡二叉树等
+	3.不同的存储引擎使用不同的算法实现索引，B+索引等中应该存放柱面扇区等信息
+	4.字段的取值范围很广，几乎没有重复，这样应用索引效果比较好，索引树形成高度。如对sex('M','F')字段完全没有必要索引
+	5.优化器对索引的选择，联合索引（ICp优化），辅助索引，索引提示，MRR等功能
+	6.哈希索引，T树索引
+
+分区：
+	1.目前的应用使用分区是否高效，分区是把双刃剑，在OLTP中要慎重考虑分区
+	2.首先看看使用的存储引擎是否支持分区，InnoDB/myisam支持
+	3.虽然逻辑上是一个表或索引，但是物理上是有多个独立的物理分区组成，这是分区的基础
+	4.mysql支持局部分区，就是一个分区即存放数据文件也存放索引文件。全局分区是分区存放数据文件，
+	  索引文件存放在一个独立的对象中
+	5.mysql支持水平分区（将表中不同的记录分配到不同的物理文件中），不支持垂直分区（将不同的列分配到不同的物理文件中）
+	6.分区命令有：
+		SHOW VARIABLES LIKE '%partition%'
+		SHOW PLUGINS
+	7.分区要求，如果表中存在主键或唯一索引时，分区列必须是唯一索引的一个组成部分
+	8.分区类型：
+		range：根据某一列的值将记录存放在特定的分区文件中，不在range范围内的数据不能插入
+			CREATE TABLE sales(
+				money INT UNSIGNED  NOT NULL,
+				d_date DATETIME
+			) ENGINE INNODB
+			PARTITION BY RANGE(year(d_date))(
+				PARTITION p2014 VALUES LESS THAN(2014),
+				PARTITION p2015 VALUES LESS THAN(2015),
+				PARTITION p2016 VALUES LESS THAN(2016)
+			);
+			SELECT * FROM information_schema.partitions WHERE table_name='sales'
+			ALTER TABLE t ADD PARTITION (PARTITION p2 VALUES LESS THAN maxvalue); -- 这样就没有插入值失败的情况了,考虑是否符合业务需求
+			ALTER TABLE sales DROP PARTITION p2016
+			EXPLAIN PARTITIONS SELECT * FROM sales WHERE d_date>='2014-01-01' AND d_date<='2015-01-01' 
+				根据索引的特性编写最优的sql，这里应该是d_date<='2014-12-30'
+			对于range分区，优化器只能对year to_days to_seconds 等函数进行优化选择
+			range分区经常用在按照时间划分的场景中，如上表
+
+		list：
+			CREATE TABLE t(
+				a INT,
+				b INT
+			)
+			PARTITION BY LIST(a)(
+				PARTITION p0 VALUES IN(1,3,5,7,9),
+				PARTITION p1 VALUES IN(0,2,4,6,8)
+			);
+			对于不在list范围内的数据不能被插入，对于事务性myisam与InnoDB处理不同
+		hash/key：
+			有hash和linear hash分区，根据用户定义函数或者系统函数进行分区，linear的增删改查更加快捷，
+			但数据分布可能不太均衡
+			key分区与hash一样，只是它必须使用系统函数进行分区
+			CREATE TABLE t(
+				a INT,
+				b DATETIME
+			)
+			PARTITION BY HASH(year(b)) PARTITIONS 4;
+			hash分区的重点是保证数据均匀分布
+		columns：
+			以上分区必须转化成整形，但是配合columns分区任何整形，日期类型，字符串类型都可以作为分区类型，不限于一个列
+			如：range columns，list columns(a,b,c)等等
+		子分区：
+		分区表数据交换：
+	9.索引与分区表：
+		索引可以有效的组织起数据，对于一些场景如果使用分区，导致效果不如索引，这就需要对查询类型，
+		业务类型的很好理解之后做出判断
+	10.要很好的使用explain查看优化情况
+
+
+主从复制：
+	
+
+应用：
+	1.将suv，ip，domain，url字段的200w条记录放到数据表中，做实验
+	2.将ip，provice，city，region放到表中
+	3.观察利用索引前后查询的效果
+
+2014年11月26日 星期三 第一次总结
+=====================================================================================================
+
+索引优化：
+	网址：http://www.php100.com/html/webkaifa/database/Mysql/2010/0409/4279.html
+	讲述索引的类型，索引的优缺点，使用索引的注意事项
+======================================================================================
+2015年01月27日 星期二
+	数据库的导出工具的使用：
+	1.导出整个数据库:mysqldump -u root -p jobs -h 127.0.0.1 > wholedb.sql
+	2.导出表:mysqldump -u root -p jobs job -h 127.0.0.1 > table.sql
+	3.导出数据库结构:mysqldump -u root -p -d -add-drop-table 数据库名 > structure.sql
+	4.更多mysqldump操作，http://www.360doc.com/content/12/0730/15/820209_227281965.shtml
+==========================================================================================
+2015年02月05日 星期四
+sql优化：
+	参考：
+		http://www.cnblogs.com/ggjucheng/archive/2012/11/11/2765465.html
+	优化目标：
+		1.减少IO，IO是任何系统的瓶颈所在，所以第一步要求减少IO次数
+		2.降低CPU计算时间，除了IO之外就是CPU耗时，order group distinct等都是消耗CPU的大户
+	优化方法：
+		1.改变mysql的执行计划，让其少走弯路，做到减少IO，降低CPU的目的
+	常见误区：
+		1.count(1) / count(primaryKey)并不优于count(*),mysql对count(*)有特别的优化
+		2.count(*)=count(1)!=count(column) 字段为NULL的count(column)不计数
+		3.select a,b,c from / select a,b 正常来说效果一样，因为它们不在一个IO单元中
+		  当a b上有索引，通过索引可以直接取到值，不需要回表时，c没有索引，这时两个查询的差异较大
+		4.order by 不一定需要排序操作
+		  索引数据其实是有序的，通过索引来查找数据可以不用通过数据库排序，直接返回结果，这也是优化的重点
+		5.执行计划中有"using filesort"并不代表一定执行文件排序，只要索引排序不能满足需求，就会执行filedsort
+		6.用join代替子查询，虽然join性能不好，但是还是比子查询的效果要好很多
+		7.使用union union all代替or,使用union all代替union，union all需要大量的排序，占用CPU时间
+		8.尽早过滤掉无用记录，在join过程中表现尤为明显
+		9.尽量避免类型转换，cast等操作，导致索引不能应用，不要对where的查询等字段进行转化
+		10.对每一条sql要执行explain，查看执行计划
+		11.like操作不能利用索引，导致全表扫描
+		12.可以改为强制查询使用索引，select id from t with(index(索引名)) where num=10
+		13.应尽可能的避免更新 clustered 索引数据列，因为 clustered索引数据列的顺序就是表记录的物理存储顺序，
+		   一旦该列值改变将导致整个表记录的顺序的调整，会耗费相当大的资源。若应用系统需要频繁更新
+		   clustered 索引数据列，那么需要考是否应将该索引建为 clustered 索引。
+		14.这里面还有很多优化方法，但有的是错误的
+		   http://www.cnblogs.com/huangye-dream/archive/2013/05/21/3091906.html
+==========================================================================
+2015年02月06日 星期屋
+	MySQL系统调优：
+		参考：
+			http://blog.sina.com.cn/s/blog_5357c0af01011a2z.html
+		1.
