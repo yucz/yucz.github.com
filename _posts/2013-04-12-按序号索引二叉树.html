@@ -1,0 +1,15 @@
+---
+layout: default
+title: 按序号索引二叉树
+description: 按序号索引二叉树
+categories: [mysql]
+tags: [二叉树索引]
+---
+
+[转载：http://blog.csdn.net/whinah/article/details/521946]
+
+<div id="article_content" class="article_content">
+<p dir="ltr" style="MARGIN-RIGHT: 0px">　　理论上，一个平衡的二叉树，可以在 O(logn)时间内，按中序遍历的顺序号（或者说下标）完成对结点的搜索。不过，这需要在每个结点上存储以该结点为根的子树的大小，通过增加存储的途径，来改善性能。</p><p dir="ltr" style="MARGIN-RIGHT: 0px">　　如果这是一棵排序树，那么这个序号就是按大小排列的顺序号。</p><p dir="ltr" style="MARGIN-RIGHT: 0px">　　但是如果这颗树在程序运行过程中有对结点的动态插入和删除（插入和删除时，以及调整平衡性时，都需要调整插入/删除结点路径上的Node.count，时间复杂度为O(logn)），那么每个结点的序号就是变化的。</p><p dir="ltr" style="MARGIN-RIGHT: 0px">　　因此，不能把序号存储在某个地方，然后又企图根据这一序号，重新找到该序号先前对应的那个结点。可能时因为这个原因，在很多时候，没有对这种计算的需求。我目前还没有在什么地方看到过这方面的文章。自己苦思冥想，竟也完成了。</p><p dir="ltr" style="MARGIN-RIGHT: 0px"></p><p class="MsoNormal" style="MARGIN: 0cm 0cm 0pt; TEXT-ALIGN: left; mso-layout-grid-align: none" align="left"><font face="courier new,courier,monospace"><font size="2"><span lang="EN-US" style="FONT-SIZE: 12pt; COLOR: blue; mso-font-kerning: 0pt"><font color="#000000">class Node<br>{<br>public:<br>&nbsp;Node* getByIndex(int index)<br>&nbsp;{<br>&nbsp;&nbsp;Node* p = this;<br>&nbsp;&nbsp;while (p)<br>&nbsp;&nbsp;{<br>&nbsp;&nbsp;&nbsp;Node* q = p-&gt;left;<br>&nbsp;&nbsp;&nbsp;while (q &amp;&amp; q-&gt;count &gt; index)<br>&nbsp;&nbsp;&nbsp;{<br>&nbsp;&nbsp;&nbsp;&nbsp;p = q;<br>&nbsp;&nbsp;&nbsp;&nbsp;q = q-&gt;left;<br>&nbsp;&nbsp;&nbsp;}<br>&nbsp;&nbsp;&nbsp;if (0 == q || q-&gt;count == index) return p;</font></span></font></font></p><p class="MsoNormal" style="MARGIN: 0cm 0cm 0pt; TEXT-ALIGN: left; mso-layout-grid-align: none" align="left"><font face="courier new,courier,monospace"><font size="2"><span lang="EN-US" style="FONT-SIZE: 12pt; COLOR: blue; mso-font-kerning: 0pt"><font color="#000000">&nbsp;&nbsp;&nbsp;p = p-&gt;right;<br>&nbsp;&nbsp;&nbsp;index--;<br>&nbsp;&nbsp;&nbsp;if (q) index -= q-&gt;count;<br>&nbsp;&nbsp;}<br>&nbsp;&nbsp;return 0;<br>&nbsp;}<br>private:<br>&nbsp;Node *left, *right;<br>&nbsp;int count; // node count of 'this' and its subtree<br>};<br></font></span></font></font></p><span lang="EN-US"><p><font face="courier new,courier,monospace" size="3">&nbsp;</font></p></span>    
+
+</div>
+

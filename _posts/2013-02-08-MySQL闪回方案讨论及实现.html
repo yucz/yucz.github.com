@@ -1,0 +1,102 @@
+---
+layout: default
+title: MySQL闪回方案讨论及实现 
+description: MySQL闪回方案讨论及实现 
+categories: [mysql]
+tags: [SQL语法]
+---
+
+[转载：追风刀·丁奇：http://www.zhdba.com/mysqlops/2012/05/23/mysql%E9%97%AA%E5%9B%9E%E6%96%B9%E6%A1%88%E8%AE%A8%E8%AE%BA%E5%8F%8A%E5%AE%9E%E7%8E%B0/]
+
+<div class="entry-content">
+			<p align="center">Oracle有一个闪回（flashback）功能，能够用户恢复误操作的数据。本文讨论MySQL数据库中支持闪回的方案。</p>
+<p><strong>1、 </strong><strong>闪回的目标</strong><strong></strong></p>
+<p>即使为了数据安全，我们搭建了主从。但实时主从备份只能防止硬件问题，比如主库的硬盘损坏。但对于误操作，则无能为力。比如在主库误删一张表，或者一个update语句没有指定where条件，导致全表被更新。当操作被同步到从库上后，则主从都“回天无力”。</p>
+<p>线上或者测试环境经常出现的误操作总是让DBA同学那么闹心。</p>
+<p>闪回的目的是要让数据库在commit之后，还能恢复到之前的某个状态，整库或指定的表。<span id="more-5804"></span></p>
+<p>这里我们讨论用binlog来实现闪回的方案。</p>
+<p><strong>2、 </strong><strong>无米无炊一</strong><strong></strong></p>
+<p>恢复到之前的某个状态，是需要数据的。这数据可以是 a) 回滚步骤 或者 b) 操作之前的数据状态原文。<br>
+但我们知道，若使用statement，并没有上述需要的数据。试想binlog中记录了一句update t set f1=3 where id=3。怎么恢复呢？</p>
+<p>因此，我们的第一个“米”，就是二进制日志binlog必须是row based的。在row base下，二进制日志binlog同时记录了更新前后的整行记录。</p>
+<p><strong>&nbsp;&nbsp;&nbsp;</strong><strong>a)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </strong><strong>单个语句的闪回</strong><strong></strong></p>
+<p><strong>&nbsp;</strong>有了row base的binlog后，我们来分析一下怎么实现闪回。平时的DML无非三种操作，增删改，先说三种操作的日志格式。</p>
+<p>一个语句分成两个event (实际上不止，其他可以忽略)， 一个table_map event 和 一个Rows_log_event。Table_map event是一样的，主要看Rows_log_event。<br>
+每个Rows_log_event中包含event_type, 可选值为WRITE_ROWS_EVENT、UPDATE_ROWS_EVENT、DELETE_ROWS_EVENT。从宏名字就能看出用途。</p>
+<p>对于insert和delete，event中包含了插入/删除的记录的所有字段的值(太爽了。。)<br>
+对于update操作，event中依次记录旧行， 新行的值。</p>
+<p>因此我们看到，这些信息足够让我们对单个操作实现“逆操作”。<br>
+i.&nbsp;对于insert操作，只需要把event_type改成DELETE_ROWS_EVENT；对于delete操作，改成WRITE_ROWS_EVENT<br>
+ii.&nbsp;&nbsp;对于update操作，只需要把event中的旧行和新行值对调即可。</p>
+<p><strong>b)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; </strong><strong>二进制日志binlog</strong><strong>的闪回<br>
+</strong>我们只需要把binlog文件反向执行，每个操作都执行逆操作即可。当然也不是所有的event都反转。Table_map event必须还是在Rows_log_event每个操作之前。目前的方案是用mysqlbinlog工具，增加一个flashback参数，输出结果为一个新的binlog文件――姑且叫做flashbacklog，这个flashbacklog顺序执行，可制定某张表和执行到哪个pos，来实现数据库的闪回。</p>
+<p><strong>3、 </strong><strong>无米无炊二</strong></p>
+<p>上面我们说了DML的闪回方案。但对于DDL却无能为力，对于大多数的DDL，即使是row base格式，二进制日志binlog中仍只记录语句本身。对于删表操作，只记录一个语句drop table t。仅凭这句话，无法还原表的数据。</p>
+<p>虽然可以将一个drop table语句转换成先delete再删表，性能却会降低很多。这里我们用上面说道的另外一种可用数据：“操作前数据备份”。</p>
+<p>按顺序我们先讨论怎么保存数据，再讨论怎么闪回。</p>
+<p><strong>保存数据<br>
+</strong>&nbsp;&nbsp;&nbsp; 先说DDL的分类。有一类DDL，是不需要重建表的，比如加非聚簇索引。这类操作其实不会丢数据，也是在原表上直接操作，对于我们“以恢复数据为目的”的闪回，是可以先忽略的。 另外一类，则是会影响到表数据的操作。比如</p>
+<p>a)&nbsp;&nbsp;Drop/truncate table<br>
+这两个操作直接把表数据清空。</p>
+<p>b)&nbsp;&nbsp;&nbsp;Alter table add、drop、change column<br>
+这类操作的执行过程是，1) 按照新的表定义建立一个临时表tmpa，2) 将原表数据拷贝到临时表，3)将原始表改名tmpb，4)将tmpa改名为原表名，<strong>5)将tmpb删除</strong>。</p>
+<p>我们分析上面的两个操作，都有一个“删除数据”的过程。</p>
+<p>因此我们的保存数据方法就是：<strong>在删除的动作开始之前，把表数据备份起来，然后留一个空表，在空表上执行“删除”操作。</strong></p>
+<p>用一个库 #bak_database存放这些历史数据。</p>
+<p><strong>闪回<br>
+</strong>&nbsp;&nbsp;&nbsp; 有了数据以后，我们就要想一个比较统一的方法来闪回。上面我们说了对于DML操作，可以通过反向执行所有逆操作来实现，对于语句里面的DDL，只能直接跳过。原因是一个DDL不一定有直接的逆操作。</p>
+<p>因此我们的方案中要构造这种逆操作。Event_type增加一种FLASHBACK_EVENT。这类操作形式与Query_Event相同，都是简单的SQL语句，只是包含了将数据恢复的操作。</p>
+<p>举例：</p>
+<p>a)&nbsp; &nbsp;对于altert table t add column 操作。</p>
+<p>我们在操作的过程中将临时表tmpb，不删除，而是保存到 #bak_database.#bak_table_xxxxx (后缀用于去重)，在我的patch中用当前的时刻（微秒）。</p>
+<p>对于这个语句，我们生成两条FLASHBACK_EVENT，分别是 alter table `#bak_database`.`#bak_table_xxxxx` rename to `my_db`.`my_tbl`; 和 drop table &nbsp;`my_db`.`my_tbl`;</p>
+<p>这里的my_db和my_tbl分别为原来的库名和表名。</p>
+<p>所以mysqlbinlog工具怎么处理FLASHBACK_EVENT这类event呢，直接执行就行了。（注意这两个event也是反向执行的，所以在恢复的时候是先删除`my_db`.`my_tbl`，再从#bak_database恢复回来）</p>
+<p>b)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 对于drop table操作</p>
+<p>由于实际操作会把这个表删，只需要一个<br>
+alter table `#bak_database`.`#bak_table_xxxxx` rename to `my_db`.`my_tbl`; 即可。</p>
+<p><strong>4、 </strong><strong>演示</strong><strong></strong></p>
+<p>初始状态我们库中只有一个表 test.tb，两行</p>
+<table border="1" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td valign="top" width="568">CREATE TABLE `tb` (<br>
+`c` int(11) NOT NULL DEFAULT ’0′,<br>
+`d` int(11) DEFAULT NULL,<br>
+PRIMARY KEY (`c`)<br>
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;mysql&gt; select * from tb;<br>
++——+——+<br>
+| c&nbsp;&nbsp;&nbsp; | d&nbsp;&nbsp;&nbsp; |<br>
++——+——+<br>
+|&nbsp;&nbsp;&nbsp; 1 |&nbsp;&nbsp; 10 |<br>
+|&nbsp;&nbsp;&nbsp; 2 |&nbsp;&nbsp; 20 |<br>
++——+——+</td>
+</tr>
+</tbody>
+</table>
+<p>模拟一个DML和一个DDL</p>
+<table border="1" cellspacing="0" cellpadding="0">
+<tbody>
+<tr>
+<td valign="top" width="568">insert into tb values(3,30);<br>
+alter table tb drop column d;</td>
+</tr>
+</tbody>
+</table>
+<p>这两个操作后在binlog文件中生成的结果如下<br>
+<a href="http://www.zhdba.com/wp-content/uploads/2012/05/flashback.jpg"><img class="alignnone  wp-image-5805" src="http://www.zhdba.com/wp-content/uploads/2012/05/flashback.jpg" alt="" width="826" height="377"></a></p>
+<p>说明：</p>
+<p>将mysqlbinloig中的其他信息去掉，其中红色框中为insert语句产生的binlog，在flashback工具中会被转化为delete操作。</p>
+<p>两个蓝色框中的即为我们生成的FLASHBACK_EVENT。除了event_type与普通的query_event不同，还将库名＋表名放在语句的前面，目的是为了flashback工具执行按表闪回的时候可以直接识别表名，不需要解析binlog语句。</p>
+<p>紫色框中就是那个真正的DDL操作，在flashback工具中被忽略。</p>
+<p>所以上面的binlog被flashback工具解析后的结果是两个DDL语句和一个delete操作，能够恢复到表的初始状态。</p>
+<p>备份表：</p>
+<p><a href="http://www.zhdba.com/wp-content/uploads/2012/05/backtable.jpg"><img src="http://www.zhdba.com/wp-content/uploads/2012/05/backtable.jpg" alt="" width="697" height="193"></a></p>
+<p><strong>5、 </strong><strong>小结</strong><strong></strong></p>
+<p>这里讨论了MySQL闪回的一种方案.</p>
+<p>增加一种新的event_type, 不会影响原来mysqlbinlog工具的使用；<br>
+备份即将删除的表，没有增加额外的操作，不会对正常操作性能造成影响（当然需要更多的存储空间）。</p>
+<p>实际上我们上面还留了一个“空挡”没有讨论，在方案完成后补充。</p>
+<p>涉及到MySQL server本身和mysqlbinlog这个工具两部分的修改，MySQL工具部分由@plinux同学实现。（其实如果不恢复DDL，可以只使用这个工具）.</p>
+<p>Patch和工具在完成测试后发布出来，敬请期待。</p>
+					</div>

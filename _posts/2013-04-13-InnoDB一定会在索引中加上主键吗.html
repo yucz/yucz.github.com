@@ -1,0 +1,193 @@
+---
+layout: default
+title: InnoDB一定会在索引中加上主键吗
+description: InnoDB一定会在索引中加上主键吗
+categories: [mysql]
+tags: [索引]
+---
+
+<div class="content">
+		<p><span style="color: #888888;">本文内容遵从<a href="http://creativecommons.org/licenses/by-nc-sa/3.0/deed.zh" target="_blank">CC版权协议</a>, 可以随意转载, 但必须以超链接形式标明文章原始出处和作者信息及版权声明<br>网址: http://www.penglixun.com/tech/database/will_innodb_store_pk_in_index.html </span></p>
+<p><acronym title="Database Administrator">DBA</acronym>群里在讨论一个问题，到底InnoDB会不会在索引末尾加上主键，什么时候会加？</p>
+<p>我之前看代码记得是如果索引末尾就是主键，那么InnoDB就不再添加主键了，如果索引末尾不是主键，那么会添加主键，但是这跟测试结果不符：</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12621"><td class="code" id="p1262code1"><pre class="sql" style="font-family:monospace;"><span style="color: #993333; font-weight: bold;">CREATE</span> <span style="color: #993333; font-weight: bold;">TABLE</span> t <span style="color: #66cc66;">(</span>
+  a char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span> <span style="color: #993333; font-weight: bold;">primary</span> <span style="color: #993333; font-weight: bold;">key</span><span style="color: #66cc66;">,</span>
+  b char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span><span style="color: #66cc66;">,</span>
+  <span style="color: #993333; font-weight: bold;">KEY</span> idx1 <span style="color: #66cc66;">(</span>a<span style="color: #66cc66;">,</span>b<span style="color: #66cc66;">)</span><span style="color: #66cc66;">,</span>
+  <span style="color: #993333; font-weight: bold;">KEY</span> idx2 <span style="color: #66cc66;">(</span>b<span style="color: #66cc66;">,</span>a<span style="color: #66cc66;">)</span>
+<span style="color: #66cc66;">)</span> Engine<span style="color: #66cc66;">=</span>InnoDB;</pre></td></tr></tbody></table></div>
+
+<p>插入部分数据后可以看到idx1和idx2两个索引的大小相同。这说明idx1和idx2的内部结构是一样的，因此 <strong>不可能</strong> 是idx1在内部存为(a,b,a)。</p>
+<p>在登博的指导下看了 <strong>dict0dict.cc:dict_index_build_internal_non_clust()</strong> 这个函数，就是构造索引的数据字典的过程，理解了这个过程就明白了，我们接下来解读下这个函数（基于5.6最近trunk）：</p>
+<p><span id="more-1262"></span></p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12622"><td class="code" id="p1262code2"><pre class="cpp" style="font-family:monospace;"><span style="color: #0000dd;">2727</span> <span style="color: #ff0000; font-style: italic;">/*******************************************************************/</span><span style="color: #ff0000; font-style: italic;">/**
+2728 Builds the internal dictionary cache representation for a non-clustered
+2729 index, containing also system fields not defined by the user.
+2730 @return own: the internal representation of the non-clustered index */</span>
+<span style="color: #0000dd;">2731</span> <span style="color: #0000ff;">static</span>
+<span style="color: #0000dd;">2732</span> dict_index_t<span style="color: #000040;">*</span>
+<span style="color: #0000dd;">2733</span> dict_index_build_internal_non_clust<span style="color: #008000;">(</span>
+<span style="color: #0000dd;">2734</span> <span style="color: #ff0000; font-style: italic;">/*================================*/</span>
+<span style="color: #0000dd;">2735</span>   <span style="color: #0000ff;">const</span> dict_table_t<span style="color: #000040;">*</span> table,  <span style="color: #ff0000; font-style: italic;">/*!&lt; in: table */</span>
+<span style="color: #0000dd;">2736</span>   dict_index_t<span style="color: #000040;">*</span>   index<span style="color: #008000;">)</span>  <span style="color: #ff0000; font-style: italic;">/*!&lt; in: user representation of
+2737           a non-clustered index */</span>
+<span style="color: #0000dd;">2738</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2739</span>   dict_field_t<span style="color: #000040;">*</span> field<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2740</span>   dict_index_t<span style="color: #000040;">*</span> new_index<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2741</span>   dict_index_t<span style="color: #000040;">*</span> clust_index<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2742</span>   ulint   i<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2743</span>   ibool<span style="color: #000040;">*</span>    indexed<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2744</span> 
+<span style="color: #0000dd;">2745</span>   ut_ad<span style="color: #008000;">(</span>table <span style="color: #000040;">&amp;&amp;</span> index<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2746</span>   ut_ad<span style="color: #008000;">(</span><span style="color: #000040;">!</span>dict_index_is_clust<span style="color: #008000;">(</span>index<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2747</span>   ut_ad<span style="color: #008000;">(</span>mutex_own<span style="color: #008000;">(</span><span style="color: #000040;">&amp;</span><span style="color: #008000;">(</span>dict_sys<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>mutex<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2748</span>   ut_ad<span style="color: #008000;">(</span>table<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>magic_n <span style="color: #000080;">==</span> DICT_TABLE_MAGIC_N<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2749</span> 
+<span style="color: #0000dd;">2750</span>   <span style="color: #ff0000; font-style: italic;">/* The clustered index should be the first in the list of indexes */</span>
+<span style="color: #0000dd;">2751</span>   clust_index <span style="color: #000080;">=</span> UT_LIST_GET_FIRST<span style="color: #008000;">(</span>table<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>indexes<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2752</span> 
+<span style="color: #0000dd;">2753</span>   ut_ad<span style="color: #008000;">(</span>clust_index<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2754</span>   ut_ad<span style="color: #008000;">(</span>dict_index_is_clust<span style="color: #008000;">(</span>clust_index<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2755</span>   ut_ad<span style="color: #008000;">(</span><span style="color: #000040;">!</span>dict_index_is_univ<span style="color: #008000;">(</span>clust_index<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2756</span> 
+<span style="color: #0000dd;">2757</span>   <span style="color: #ff0000; font-style: italic;">/* Create a new index */</span>
+<span style="color: #0000dd;">2758</span>   new_index <span style="color: #000080;">=</span> dict_mem_index_create<span style="color: #008000;">(</span>
+<span style="color: #0000dd;">2759</span>     table<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>name, index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>name, index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>space, index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>type,
+<span style="color: #0000dd;">2760</span>     index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_fields <span style="color: #000040;">+</span> <span style="color: #0000dd;">1</span> <span style="color: #000040;">+</span> clust_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_uniq<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2761</span> 
+<span style="color: #0000dd;">2762</span>   <span style="color: #ff0000; font-style: italic;">/* Copy other relevant data from the old index
+2763   struct to the new struct: it inherits the values */</span>
+<span style="color: #0000dd;">2764</span> 
+<span style="color: #0000dd;">2765</span>   new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_user_defined_cols <span style="color: #000080;">=</span> index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_fields<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2766</span> 
+<span style="color: #0000dd;">2767</span>   new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>id <span style="color: #000080;">=</span> index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>id<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2768</span> 
+<span style="color: #0000dd;">2769</span>   <span style="color: #ff0000; font-style: italic;">/* Copy fields from index to new_index */</span>
+<span style="color: #0000dd;">2770</span>   dict_index_copy<span style="color: #008000;">(</span>new_index, index, table, <span style="color: #0000dd;">0</span>, index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_fields<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2771</span> 
+<span style="color: #0000dd;">2772</span>   <span style="color: #ff0000; font-style: italic;">/* Remember the table columns already contained in new_index */</span>
+<span style="color: #0000dd;">2773</span>   indexed <span style="color: #000080;">=</span> <span style="color: #0000ff;">static_cast</span><span style="color: #000080;">&lt;</span>ibool<span style="color: #000040;">*</span><span style="color: #000080;">&gt;</span><span style="color: #008000;">(</span>
+<span style="color: #0000dd;">2774</span>     mem_zalloc<span style="color: #008000;">(</span>table<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_cols <span style="color: #000040;">*</span> <span style="color: #0000dd;">sizeof</span> <span style="color: #000040;">*</span>indexed<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2775</span> 
+<span style="color: #0000dd;">2776</span>   <span style="color: #ff0000; font-style: italic;">/* Mark the table columns already contained in new_index */</span>
+<span style="color: #0000dd;">2777</span>   <span style="color: #0000ff;">for</span> <span style="color: #008000;">(</span>i <span style="color: #000080;">=</span> <span style="color: #0000dd;">0</span><span style="color: #008080;">;</span> i <span style="color: #000080;">&lt;</span> new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_def<span style="color: #008080;">;</span> i<span style="color: #000040;">++</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2778</span> 
+<span style="color: #0000dd;">2779</span>     field <span style="color: #000080;">=</span> dict_index_get_nth_field<span style="color: #008000;">(</span>new_index, i<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2780</span> 
+<span style="color: #0000dd;">2781</span>     <span style="color: #ff0000; font-style: italic;">/* If there is only a prefix of the column in the index
+2782     field, do not mark the column as contained in the index */</span>
+<span style="color: #0000dd;">2783</span> 
+<span style="color: #0000dd;">2784</span>     <span style="color: #0000ff;">if</span> <span style="color: #008000;">(</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>prefix_len <span style="color: #000080;">==</span> <span style="color: #0000dd;">0</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2785</span> 
+<span style="color: #0000dd;">2786</span>       indexed<span style="color: #008000;">[</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>ind<span style="color: #008000;">]</span> <span style="color: #000080;">=</span> TRUE<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2787</span>     <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2788</span>   <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2789</span> 
+<span style="color: #0000dd;">2790</span>   <span style="color: #ff0000; font-style: italic;">/* Add to new_index the columns necessary to determine the clustered
+2791   index entry uniquely */</span>
+<span style="color: #0000dd;">2792</span> 
+<span style="color: #0000dd;">2793</span>   <span style="color: #0000ff;">for</span> <span style="color: #008000;">(</span>i <span style="color: #000080;">=</span> <span style="color: #0000dd;">0</span><span style="color: #008080;">;</span> i <span style="color: #000080;">&lt;</span> clust_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_uniq<span style="color: #008080;">;</span> i<span style="color: #000040;">++</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2794</span> 
+<span style="color: #0000dd;">2795</span>     field <span style="color: #000080;">=</span> dict_index_get_nth_field<span style="color: #008000;">(</span>clust_index, i<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2796</span> 
+<span style="color: #0000dd;">2797</span>     <span style="color: #0000ff;">if</span> <span style="color: #008000;">(</span><span style="color: #000040;">!</span>indexed<span style="color: #008000;">[</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>ind<span style="color: #008000;">]</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2798</span>       dict_index_add_col<span style="color: #008000;">(</span>new_index, table, field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col,
+<span style="color: #0000dd;">2799</span>              field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>prefix_len<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2800</span>     <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2801</span>   <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2802</span> 
+<span style="color: #0000dd;">2803</span>   mem_free<span style="color: #008000;">(</span>indexed<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2804</span> 
+<span style="color: #0000dd;">2805</span>   <span style="color: #0000ff;">if</span> <span style="color: #008000;">(</span>dict_index_is_unique<span style="color: #008000;">(</span>index<span style="color: #008000;">)</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2806</span>     new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_uniq <span style="color: #000080;">=</span> index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_fields<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2807</span>   <span style="color: #008000;">}</span> <span style="color: #0000ff;">else</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2808</span>     new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_uniq <span style="color: #000080;">=</span> new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_def<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2809</span>   <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2810</span> 
+<span style="color: #0000dd;">2811</span>   <span style="color: #ff0000; font-style: italic;">/* Set the n_fields value in new_index to the actual defined
+2812   number of fields */</span>
+<span style="color: #0000dd;">2813</span> 
+<span style="color: #0000dd;">2814</span>   new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_fields <span style="color: #000080;">=</span> new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_def<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2815</span> 
+<span style="color: #0000dd;">2816</span>   new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>cached <span style="color: #000080;">=</span> TRUE<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2817</span> 
+<span style="color: #0000dd;">2818</span>   <span style="color: #0000ff;">return</span><span style="color: #008000;">(</span>new_index<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2819</span> <span style="color: #008000;">}</span></pre></td></tr></tbody></table></div>
+
+<p>这是整个函数，读者最好可以先自己读读这个函数理解一下，然后再看分析。</p>
+<p>好了，下面我们开始分析了，首先把 <strong>dict_table_t</strong> 这个结构体的相关成员解释一下：</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12623"><td class="code" id="p1262code3"><pre class="cpp" style="font-family:monospace;"> <span style="color: #0000dd;">474</span>   <span style="color: #0000ff;">unsigned</span>  n_user_defined_cols<span style="color: #008080;">:</span><span style="color: #0000dd;">10</span><span style="color: #008080;">;</span>
+ <span style="color: #0000dd;">475</span>         <span style="color: #ff0000; font-style: italic;">/*!&lt; number of columns the user defined to
+ 476         be in the index: in the internal
+ 477         representation we add more columns */</span>
+ <span style="color: #0000dd;">478</span>   <span style="color: #0000ff;">unsigned</span>  n_uniq<span style="color: #008080;">:</span><span style="color: #0000dd;">10</span><span style="color: #008080;">;</span><span style="color: #ff0000; font-style: italic;">/*!&lt; number of fields from the beginning                                                                                                                                                                         
+ 479         which are enough to determine an index
+ 480         entry uniquely */</span>
+ <span style="color: #0000dd;">481</span>   <span style="color: #0000ff;">unsigned</span>  n_def<span style="color: #008080;">:</span><span style="color: #0000dd;">10</span><span style="color: #008080;">;</span><span style="color: #ff0000; font-style: italic;">/*!&lt; number of fields defined so far */</span>
+ <span style="color: #0000dd;">482</span>   <span style="color: #0000ff;">unsigned</span>  n_fields<span style="color: #008080;">:</span><span style="color: #0000dd;">10</span><span style="color: #008080;">;</span><span style="color: #ff0000; font-style: italic;">/*!&lt; number of fields in the index */</span></pre></td></tr></tbody></table></div>
+
+<p>注释很好理解，主要是 n_uniq 表示索引中需要多少个字段来唯一标识一行数据，只对唯一索引有效；n_def 是有多少个字段用了扩展存储空间，就是索引中只存前缀； n_fields 是索引最终一共有多少字段，包括系统加的；n_user_defined_cols 是用户定义的字段数，不包括系统自动加的。</p>
+<p>然后我们来看两段最主要的代码：</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12624"><td class="code" id="p1262code4"><pre class="cpp" style="font-family:monospace;"><span style="color: #0000dd;">2772</span>   <span style="color: #ff0000; font-style: italic;">/* Remember the table columns already contained in new_index */</span>
+<span style="color: #0000dd;">2773</span>   indexed <span style="color: #000080;">=</span> <span style="color: #0000ff;">static_cast</span><span style="color: #000080;">&lt;</span>ibool<span style="color: #000040;">*</span><span style="color: #000080;">&gt;</span><span style="color: #008000;">(</span>
+<span style="color: #0000dd;">2774</span>     mem_zalloc<span style="color: #008000;">(</span>table<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_cols <span style="color: #000040;">*</span> <span style="color: #0000dd;">sizeof</span> <span style="color: #000040;">*</span>indexed<span style="color: #008000;">)</span><span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2775</span> 
+<span style="color: #0000dd;">2776</span>   <span style="color: #ff0000; font-style: italic;">/* Mark the table columns already contained in new_index */</span>
+<span style="color: #0000dd;">2777</span>   <span style="color: #0000ff;">for</span> <span style="color: #008000;">(</span>i <span style="color: #000080;">=</span> <span style="color: #0000dd;">0</span><span style="color: #008080;">;</span> i <span style="color: #000080;">&lt;</span> new_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_def<span style="color: #008080;">;</span> i<span style="color: #000040;">++</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2778</span> 
+<span style="color: #0000dd;">2779</span>     field <span style="color: #000080;">=</span> dict_index_get_nth_field<span style="color: #008000;">(</span>new_index, i<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2780</span> 
+<span style="color: #0000dd;">2781</span>     <span style="color: #ff0000; font-style: italic;">/* If there is only a prefix of the column in the index
+2782     field, do not mark the column as contained in the index */</span>
+<span style="color: #0000dd;">2783</span> 
+<span style="color: #0000dd;">2784</span>     <span style="color: #0000ff;">if</span> <span style="color: #008000;">(</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>prefix_len <span style="color: #000080;">==</span> <span style="color: #0000dd;">0</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2785</span> 
+<span style="color: #0000dd;">2786</span>       indexed<span style="color: #008000;">[</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>ind<span style="color: #008000;">]</span> <span style="color: #000080;">=</span> TRUE<span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2787</span>     <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2788</span>   <span style="color: #008000;">}</span></pre></td></tr></tbody></table></div>
+
+<p>InnoDB首先创建了一个布尔型数组，然后依次循环索引上的每一个字段，如果这个字段不是只有前缀，那么就在数组中记下它的索引号，标记这个字段在索引中出现了。因此indexed数组就存下了索引中用户定义的所有字段序号。</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12625"><td class="code" id="p1262code5"><pre class="cpp" style="font-family:monospace;"><span style="color: #0000dd;">2790</span>   <span style="color: #ff0000; font-style: italic;">/* Add to new_index the columns necessary to determine the clustered
+2791   index entry uniquely */</span>
+<span style="color: #0000dd;">2792</span> 
+<span style="color: #0000dd;">2793</span>   <span style="color: #0000ff;">for</span> <span style="color: #008000;">(</span>i <span style="color: #000080;">=</span> <span style="color: #0000dd;">0</span><span style="color: #008080;">;</span> i <span style="color: #000080;">&lt;</span> clust_index<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>n_uniq<span style="color: #008080;">;</span> i<span style="color: #000040;">++</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2794</span> 
+<span style="color: #0000dd;">2795</span>     field <span style="color: #000080;">=</span> dict_index_get_nth_field<span style="color: #008000;">(</span>clust_index, i<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2796</span> 
+<span style="color: #0000dd;">2797</span>     <span style="color: #0000ff;">if</span> <span style="color: #008000;">(</span><span style="color: #000040;">!</span>indexed<span style="color: #008000;">[</span>field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>ind<span style="color: #008000;">]</span><span style="color: #008000;">)</span> <span style="color: #008000;">{</span>
+<span style="color: #0000dd;">2798</span>       dict_index_add_col<span style="color: #008000;">(</span>new_index, table, field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>col,
+<span style="color: #0000dd;">2799</span>              field<span style="color: #000040;">-</span><span style="color: #000080;">&gt;</span>prefix_len<span style="color: #008000;">)</span><span style="color: #008080;">;</span>
+<span style="color: #0000dd;">2800</span>     <span style="color: #008000;">}</span>
+<span style="color: #0000dd;">2801</span>   <span style="color: #008000;">}</span></pre></td></tr></tbody></table></div>
+
+<p>这一段就开始循环聚集索引（主键）的每个字段，盘下indexed数组中这个字段是不是有了，如果没有，那么再调用 dict_index_add_col 把字段加到索引中。</p>
+<p>因此只要用户定义的索引字段中包含了主键中的字段，那么这个字段就不会再被InnoDB自动加到索引中了，如果用户的索引字段中没有完全包含主键字段，InnoDB就会把剩下的主键字段加到索引末尾。</p>
+<p>因此我们最初的例子中， idx1 和 idx2 两个索引内部大小完全一样，没有区别。</p>
+<p>最后再补充下组合主键的例子：</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12626"><td class="code" id="p1262code6"><pre class="sql" style="font-family:monospace;"><span style="color: #993333; font-weight: bold;">CREATE</span> <span style="color: #993333; font-weight: bold;">TABLE</span> t <span style="color: #66cc66;">(</span>
+  a char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span><span style="color: #66cc66;">,</span>
+  b char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span><span style="color: #66cc66;">,</span>
+  c char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span><span style="color: #66cc66;">,</span>
+  d char<span style="color: #66cc66;">(</span><span style="color: #cc66cc;">32</span><span style="color: #66cc66;">)</span> <span style="color: #993333; font-weight: bold;">not</span> <span style="color: #993333; font-weight: bold;">null</span><span style="color: #66cc66;">,</span>
+  <span style="color: #993333; font-weight: bold;">PRIMARY</span> <span style="color: #993333; font-weight: bold;">KEY</span> <span style="color: #66cc66;">(</span>a<span style="color: #66cc66;">,</span>b<span style="color: #66cc66;">)</span>
+  <span style="color: #993333; font-weight: bold;">KEY</span> idx1 <span style="color: #66cc66;">(</span>c<span style="color: #66cc66;">,</span>a<span style="color: #66cc66;">)</span><span style="color: #66cc66;">,</span>
+  <span style="color: #993333; font-weight: bold;">KEY</span> idx2 <span style="color: #66cc66;">(</span>d<span style="color: #66cc66;">,</span>b<span style="color: #66cc66;">)</span>
+<span style="color: #66cc66;">)</span> Engine<span style="color: #66cc66;">=</span>InnoDB;</pre></td></tr></tbody></table></div>
+
+<p>这个表InnoDB会自动补全主键字典，idx1 实际上内部存储为 (c,a,b)，idx2 实际上内部存储为 (d,b,a)。<br>
+但是这个自动添加的字段，Server层是不知道的，所以MySQL优化器并不知道这个字段的存在，所以如果你有一个查询：</p>
+
+<div class="wp_codebox"><table><tbody><tr id="p12627"><td class="code" id="p1262code7"><pre class="cpp" style="font-family:monospace;">SELECT <span style="color: #000040;">*</span> FROM t WHERE d<span style="color: #000080;">=</span>x1 AND b<span style="color: #000080;">=</span>x2 ORDER BY a<span style="color: #008080;">;</span></pre></td></tr></tbody></table></div>
+
+<p>其实内部存储的idx2(d,b,a)可以让这个查询完全走索引，但是由于Server层不知道，所以最终MySQL优化器可能选择 idx2(d,b) 做过滤然后排序 a 字段，或者直接用PK扫描避免排序。</p>
+<p>而如果我们定义表结构的时候就定义为 KEY idx2(d,b,a) ，那么MySQL就知道(d,b,a)三个字段索引中都有，并且InnoDB发现用户定义的索引中包含了所有的主键字段，也不会再添加了，并没有增加存储空间。</p>
+<p>因此，由衷的建议，所有的<acronym title="Database Administrator">DBA</acronym>建索引的时候，都<strong>在业务要求的索引字段后面补上主键字段</strong>，这没有任何损失，但是可能给你带来意外的惊喜。</p>
+<p>希望大家能理解。这篇木有国际友人需要看，就木有英文版了～ </p>		<div class="fixed"></div>
+					<div class="tags">标签: <a href="http://www.penglixun.com/tag/index" rel="tag">Index</a>, <a href="http://www.penglixun.com/tag/innodb" rel="tag">InnoDB</a>, <a href="http://www.penglixun.com/tag/mysql" rel="tag">MySQL</a></div>
+			</div>
