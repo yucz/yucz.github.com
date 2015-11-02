@@ -7,7 +7,7 @@ tags: [SQL语法]
 ---
 
 
-	CREATE PROCEDURE PROC_NAME(IN a INT, IN bINT)
+	'''CREATE PROCEDURE PROC_NAME(IN a INT, IN bINT)
 
 	BEGIN
 		DECLARE sql1VARCHAR(100);
@@ -18,7 +18,7 @@ tags: [SQL语法]
 		PREPARE STMTFROM @SQUERY;
 		EXECUTE STMTUSING @fvar,@svar;
 	END
-
+	'''
  
 
 说明：
