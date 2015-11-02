@@ -1,0 +1,60 @@
+
+---
+layout: default
+title: 写MySQL存储过程实现动态执行SQL
+description: 写MySQL存储过程实现动态执行SQL
+categories: [mysql]
+tags: [SQL语法]
+---
+
+
+--存储过程名和参数，参数中in表示传入参数，out标示传出参数，inout表示传入传出参数
+
+create procedure p_procedurecode(in sumdate varchar(10))   
+begin
+     declare v_sql varchar(500);    --需要执行的SQL语句
+     declare sym varchar(6);
+     
+     declare var1 varchar(20);
+     declare var2 varchar(70);
+     declare var3 integer;
+
+     --定义游标遍历时，作为判断是否遍历完全部记录的标记
+     declare no_more_departments integer DEFAULT 0;     
+
+     --定义游标名字为C_RESULT 
+     DECLARE C_RESULT CURSOR FOR
+             SELECT barcode,barname,barnum FROM tmp_table;
+
+    --声明当游标遍历完全部记录后将标志变量置成某个值
+     DECLARE CONTINUE HANDLER FOR NOT FOUND
+             SET no_more_departments=1;
+
+     set sym=substring(sumdate,1,6);     --截取字符串，并将其赋值给一个遍历
+
+     --连接字符串构成完整SQL语句，动态SQL执行后的结果记录集，在MySQL中无法获取，因此需要转变思路将其放置到一个临时表中（注意代码中的写法）。一般写法如下：
+
+     --     'Create TEMPORARY Table   表名（Select的查询语句）;
+     set v_sql= concat('Create TEMPORARY Table tmp_table(select aa as aacode,bb as aaname,count(cc) as ccnum from h',sym,' where substring(dd,1,8)=''',sumdate,''' group by aa,bb)');
+
+     set @v_sql=v_sql;   --注意很重要，将连成成的字符串赋值给一个变量（可以之前没有定义，但要以@开头）
+     prepare stmt from @v_sql;  --预处理需要执行的动态SQL，其中stmt是一个变量
+     EXECUTE stmt;      --执行SQL语句
+     deallocate prepare stmt;     --释放掉预处理段
+
+     OPEN C_RESULT;       --打开之前定义的游标
+     REPEAT                      --循环语句的关键词
+           FETCH C_RESULT INTO VAR1, VAR2, VAR3;   --取出每条记录并赋值给相关变量，注意顺序
+
+          --执行查询语句，并将获得的值付给一个变量 @oldaacode（注意如果以@开头的变量可以不用通过declare语句事先声明）
+           select @oldaacode:=vcaaCode from T_sum where vcaaCode=var1 and dtDate=sumdate; 
+           if @oldaacode=var1 then    --判断
+              update T_sum set iNum=var3 where vcaaCode=var1 and dtDate=sumdate;
+           else
+               insert into T_sum(vcaaCode,vcaaName,iNum,dtDate) values(var1,var2,var3,sumdate);
+           end if;
+     UNTIL no_more_departments  END REPEAT;    --循环语句结束
+     CLOSE C_RESULT;                            --关闭游标
+
+     DROP TEMPORARY TABLE tmp_table;       --删除临时表
+end;
