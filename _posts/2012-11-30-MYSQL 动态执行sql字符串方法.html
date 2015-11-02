@@ -1,0 +1,55 @@
+---
+layout: default
+title: MYSQL 动态执行sql字符串方法 
+description: MYSQL 动态执行sql字符串方法 
+categories: [mysql]
+tags: [SQL语法]
+---
+
+
+   MySQL 常用函数大集合  xcode 一直显示Attaching 解决办法
+MYSQL 动态执行sql字符串方法  2012-04-23 13:19:37|  分类： 数据库 |  标签： |举报 |字号大
+中
+小 订阅 
+         
+用微信  “扫一扫”
+
+将文章分享到朋友圈。
+
+   
+用易信  “扫一扫”
+
+将文章分享到朋友圈。
+
+  下载LOFTER客户端 
+CREATE PROCEDURE PROC_NAME(IN a INT, IN bINT)
+
+BEGIN
+    DECLARE sql1VARCHAR(100);
+    SET sql1 ="SELECT*FROM uw_player_skill LIMIT ?,?";
+    SET@fvar =a;
+    SET@svar =b;
+    SET@SQUERY =sql1;
+    PREPARE STMTFROM @SQUERY;
+    EXECUTE STMTUSING @fvar,@svar;
+END
+
+ 
+
+说明：
+
+ 
+
+从MySQL 5.0 开始，
+支持了一个全新的SQL句法：
+
+PREPARE stmt_name FROM preparable_stmt ;
+
+EXECUTE stmt_name [USING@var_name [,@var_name ]...];
+
+{DEALLOCATE | DROP} PREPARE stmt_name ;
+
+ 
+
+通过它，我们就可以实现类似 MS SQL 的 sp_executesql 执行动态SQL语句！
+同时也可以防止注入式攻击！

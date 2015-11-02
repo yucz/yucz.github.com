@@ -1,0 +1,58 @@
+---
+layout: default
+title: MySQL索引与存储方式对性能的影响
+description: MySQL索引与存储方式对性能的影响
+categories: [mysql]
+tags: [索引]
+---
+
+<div class="content">
+		<p><span style="color: #888888;">本文内容遵从<a href="http://creativecommons.org/licenses/by-nc-sa/3.0/deed.zh" target="_blank">CC版权协议</a>, 可以随意转载, 但必须以超链接形式标明文章原始出处和作者信息及版权声明<br>网址: http://www.penglixun.com/tech/database/mysql_index_store_perfomance_effect.html </span></p>
+<p>本文配图来自《高性能MySQL(第二版)》。</p>
+<p>在数据库中，对性能影响最大的几个策略包括数据库的锁策略、缓存策略、索引策略、存储策略、执行计划优化策略。<br>
+索引策略决定数据库快速定位数据的效率，存储策略决定数据持久化的效率。<br>
+MySQL中两大主要存储引擎MyISAM和InnoDB采用了不同的索引和存储策略，本文将分析它们的异同和性能。</p>
+<p>MySQL主要提供2种方式的索引：B-Tree（包括B+Tree）索引，Hash索引。<br>
+B树索引具有范围查找和前缀查找的能力，对于N节点的B树，检索一条记录的复杂度为O(LogN)。<br>
+哈希索引只能做等于查找，但是无论多大的Hash表，查找复杂度都是O(1)。<br>
+显然，如果值的差异性大，并且以等于查找为主，Hash索引是更高效的选择，它有O(1)的查找复杂度。如果值的差异性相对较差，并且以范围查找为主，B树是更好的选择，它支持范围查找。</p>
+<p><span id="more-1077"></span><br>
+Hash索引各种引擎大同小异，没有太多可探讨性，本文主要讨论不同形式的B树索引。</p>
+<p>B树属于二叉平衡树，平衡树就是任何一个节点的左右节点高度差距不能超过1的树，这才是绝对平衡的树。<br>
+平衡树比较好的算法是AVL，它通过左旋、右旋及其组合的操作可以保证树绝对平衡。<br>
+下面是AVL算法中的全部旋转操作：<br>
+<a title="Flickr 上 P.Linux 的 AVL二叉平衡树" href="http://www.flickr.com/photos/penglixun/4446760301/"><img src="http://farm5.static.flickr.com/4024/4446760301_da13d53506_o.jpg" alt="AVL二叉平衡树" width="435" height="727"></a><br>
+平衡树处在任何一个左边的不平衡状态都可以通过相应的旋转操作转移到右边的平衡状态。</p>
+<p>数据库采用的B树只在叶子节点记录信息，非叶子节点记录的是范围信息，这是与一般搜索树不同的地方（一般搜索树非叶子节点也记录信息）。<br>
+这是一个B+树的结构，InnoDB的索引都采取了这种形式，它在B-树的基础上为每个叶子节点加了一个指针指向下一个叶子节点，这样可以快速的进行范围查找。<br>
+MyISAM是否也是B+树我还不能确定，但是B-树我没有想到可以快速进行范围查找的方法，应该也是B+树。<br>
+<a title="Flickr 上 P.Linux 的 B+树索引" href="http://www.flickr.com/photos/penglixun/4445202603/"><img src="http://farm5.static.flickr.com/4029/4445202603_eb376f2d2b_o.png" alt="B+树索引" width="544" height="355"></a></p>
+<p>例如这个B+树的例子：<br>
+<a title="Flickr 上 P.Linux 的 B+树索引的例子" href="http://www.flickr.com/photos/penglixun/4445202745/"><img src="http://farm5.static.flickr.com/4007/4445202745_f95863b2b4_o.png" alt="B+树索引的例子" width="543" height="368"></a><br>
+如果我要查找名字以A开头的全部信息，我只要获取第一个叶子节点，然后顺序沿着指向下一个叶子的指针，直到发现当年叶子节点已经不是以A开头则中止，这样只要搜索到第一个叶子节点(O(LogN))再沿着指针检索(O(N))，就可以获取全部索引，如果N个节点的表扫描M个连续值，就是O(LogN)+O(M)，如果B-树则需要回溯到上层节点，这样最差的效率是O(LogN)*M。</p>
+<p>对于InnoDB，使用了一种改进的B+树索引，称为聚集索引（Clustered Index），它的不同之处在于索引上不仅有索引值的信息，还有整个索引值所在行的信息，免去了一次通过索引值上的位置去取整行的操作。<br>
+<a title="Flickr 上 P.Linux 的 聚集索引" href="http://www.flickr.com/photos/penglixun/4445976712/"><img src="http://farm3.static.flickr.com/2789/4445976712_08522430fe_o.png" alt="聚集索引" width="546" height="398"></a></p>
+<p>假设我们有个表有(col1,col2)列，col1是主键，col2也建立索引。那么在MyISAM引擎中，文件会被这样记录，因为MyISAM是按插入顺序把数据写入文件。如果有删除则空出位置，再次插入如果可以放下则会填充空白，对于不定长的行，存储引擎都会在分页中预留位置，以供更新更长的值（一般是VARCHAR），放不下则会添加到文件结尾，并从原位置删除。所以有时候会有空间浪费，需要Optimize Table来优化。<br>
+因此：<span style="color: #ff0000;">定长的行比不定长的行效率高！把定长数据和不定长数据分开存储，很多时候可以提高效率。</span><br>
+<a title="Flickr 上 P.Linux 的 MyISAM的文件组织" href="http://www.flickr.com/photos/penglixun/4445976822/"><img src="http://farm5.static.flickr.com/4026/4445976822_5d91f2511e_o.png" alt="MyISAM的文件组织" width="206" height="176"></a></p>
+<p>再来看MyISAM的主键索引，索引Key是主键值，索引Value是行的文件位置，通过这个位置可以直接读取行。从这个图上来看，MyISAM也是采用B+树。<br>
+<a title="Flickr 上 P.Linux 的 MyISAM主键索引结构" href="http://www.flickr.com/photos/penglixun/4445203107/"><img src="http://farm3.static.flickr.com/2716/4445203107_3c3fac95a5_o.png" alt="MyISAM主键索引结构" width="535" height="198"></a></p>
+<p>MyISAM的非主键索引，跟逐渐索引没有不同，也是索引行的文件位置。<br>
+<a title="Flickr 上 P.Linux 的 MyISAM普通列索引结构" href="http://www.flickr.com/photos/penglixun/4445203165/"><img src="http://farm3.static.flickr.com/2771/4445203165_5c03c4f603_o.png" alt="MyISAM普通列索引结构" width="540" height="201"></a></p>
+<p>再看InnoDB的主键索引，索引Key是主键值，索引Value是整行的数据。<br>
+<a title="Flickr 上 P.Linux 的 InnoDB主键索引结构" href="http://www.flickr.com/photos/penglixun/4445203293/"><img src="http://farm5.static.flickr.com/4072/4445203293_8e9210300b_o.png" alt="InnoDB主键索引结构" width="544" height="251"></a></p>
+<p>InnoDB的非主键索引，索引Key是列值，索引Value是主键值。<br>
+<a title="Flickr 上 P.Linux 的 InnoDB普通列索引结构" href="http://www.flickr.com/photos/penglixun/4445977156/"><img src="http://farm3.static.flickr.com/2679/4445977156_3e858ec65e_o.png" alt="InnoDB普通列索引结构" width="543" height="203"></a></p>
+<p>对比MyISAM和InnoDB的索引策略：<br>
+<a title="Flickr 上 P.Linux 的 聚集索引和非聚集索引对比" href="http://www.flickr.com/photos/penglixun/4445977248/"><img src="http://farm5.static.flickr.com/4060/4445977248_2e51afe688_o.png" alt="聚集索引和非聚集索引对比" width="544" height="463"></a><br>
+可以发现MyISAM所有列的索引都是一样，索引Key是列值，索引Value是行的文件位置。<br>
+InnoDB的主键索引包含了行的全部信息，索引Key是主键值，索引Value是整行的值。而非主键索引索引Key是列值，索引Value是主键值，取数据时到主键索引中取。</p>
+<p>并且在InnoDB中，一个聚集索引是必须的，如果没有定义主键，InnoDB也会自己隐含的建立一个聚集索引作为主键，因为InnoDB的主键索引还有个重要的功能就是行锁，这在我的<a href="http://www.penglixun.com/work/database/innodb_next_key_locking.html">另一篇文章</a>中分析过。</p>
+<p>再来看看我们插入值时会发生什么：<br>
+<a title="Flickr 上 P.Linux 的 插入连续值到聚集索引" href="http://www.flickr.com/photos/penglixun/4445203565/"><img src="http://farm5.static.flickr.com/4006/4445203565_08b3ff0b6c_o.png" alt="插入连续值到聚集索引" width="545" height="164"></a><br>
+InnoDB会按主键索引顺序组织文件，如果按主键顺序插入，可以直接在最尾部加入。并且只填充页面的15/16，这样可以预留部分空间以供行修改，这样组织的数据是非常紧凑的。</p>
+<p>如果主键不是顺序的，我们来看看会发生什么，因为要按主键顺序存放，数据会被不断地移动，调整页面。<br>
+<a title="Flickr 上 P.Linux 的 插入非连续值到聚集索引" href="http://www.flickr.com/photos/penglixun/4445977554/"><img src="http://farm5.static.flickr.com/4045/4445977554_94e9bef209_o.png" alt="插入非连续值到聚集索引" width="540" height="386"></a><br>
+所以：<span style="color: #ff0000;">InnoDB引擎按主键顺序插入记录是非常必要的，否则性能将会面临很大风险。</span></p>		<div class="fixed"></div>
+					<div class="tags">标签: <a href="http://www.penglixun.com/tag/index" rel="tag">Index</a>, <a href="http://www.penglixun.com/tag/innodb" rel="tag">InnoDB</a>, <a href="http://www.penglixun.com/tag/myisam" rel="tag">myisam</a>, <a href="http://www.penglixun.com/tag/mysql" rel="tag">MySQL</a></div>
+			</div>
